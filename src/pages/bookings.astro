@@ -1,0 +1,93 @@
+---
+import Icon from "../components/Icon.astro";
+import Base from "../layouts/Base.astro";
+import { KIND_LABEL, libraryName } from "../lib/rooms";
+import { POOLS, type PoolId } from "../lib/rules";
+import { sampleBookings, usageToday } from "../lib/sample";
+import { canberraNow, dateLabel, slotLabel } from "../lib/time";
+import { getUser } from "../lib/users";
+
+const user = getUser(Astro.cookies);
+const now = canberraNow();
+const bookings = sampleBookings(now);
+const usage = usageToday(bookings, now);
+const pools = Object.keys(POOLS) as PoolId[];
+---
+
+<Base title="My bookings" current="bookings">
+  <main id="main" class="narrow">
+    <h1>My bookings</h1>
+    {
+      !user ? (
+        <p class="callout-info" role="status">
+          <a href="/login/?next=/bookings/">Sign in</a> to see your bookings.
+        </p>
+      ) : (
+        <>
+          <section aria-labelledby="usage-heading">
+            <h2 id="usage-heading">Today’s limits</h2>
+            <p class="muted">
+              Each booking is one hour. Joining someone else’s booking doesn’t use up your limit.
+            </p>
+            <ul class="usage">
+              {pools.map((id) => (
+                <li>
+                  <div class="usage-row">
+                    <span>{POOLS[id].label}</span>
+                    <strong>
+                      {usage[id]} of {POOLS[id].limit} used
+                    </strong>
+                  </div>
+                  <div class="meter" aria-hidden="true">
+                    <span style={`width:${Math.min(100, (usage[id] / POOLS[id].limit) * 100)}%`} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section aria-labelledby="upcoming-heading">
+            <h2 id="upcoming-heading">Upcoming</h2>
+            <ul class="messages">
+              {bookings.map((b) => (
+                <li class="card">
+                  <p class="message-title">
+                    <strong>{b.space.name}</strong>
+                    {b.shared ? (
+                      <span class="badge badge-shared">
+                        <Icon name="users" size={16} /> Shared
+                      </span>
+                    ) : (
+                      <span class="badge badge-booked">
+                        <Icon name="lock" size={16} /> Not shared
+                      </span>
+                    )}
+                  </p>
+                  <p class="muted">
+                    {libraryName(b.space.library)} · {KIND_LABEL[b.space.kind]} · {dateLabel(b.date)},{" "}
+                    {slotLabel(b.hour)}
+                  </p>
+                  {b.shared && (
+                    <p class="muted">
+                      You’re using {b.seatsUsed} of {b.space.capacity} seats · {b.joiners}{" "}
+                      {b.joiners === 1 ? "person has" : "people have"} joined · your name is{" "}
+                      {b.namePublic ? "public" : "hidden"}
+                    </p>
+                  )}
+                  <p class="row">
+                    <button type="button" class="button-quiet" disabled>
+                      Cancel booking
+                    </button>
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <p class="callout-info">
+              <Icon name="info" size={16} /> Prototype: these are sample bookings.
+            </p>
+          </section>
+        </>
+      )
+    }
+  </main>
+</Base>

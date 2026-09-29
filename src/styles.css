@@ -1,20 +1,381 @@
+/* Design tokens. ANU palette: black and white carry the page, gold is the
+   highlight (keep it under ~1/8 of any page, and never small text on white:
+   #BE830E on white is ~3.3:1). Cool blues are the calm supporting colour.
+   Status colours are functional and always paired with an icon and a word in
+   the markup.
+
+   Each token is light-dark(light, dark). The theme follows the system unless
+   the header toggle sets data-theme on <html> (see Base.astro). */
+:root {
+  color-scheme: light dark;
+
+  --gold: #be830e;
+  --gold-tint: light-dark(#f5edde, #2a2113);
+  --black: #000;
+  --white: #fff;
+
+  /* Cool blues: backgrounds, tool panels and info. No status meaning. */
+  --cool-50: light-dark(#f3f8fd, #0b111a);
+  --cool-100: light-dark(#e4eff9, #15243a);
+  --cool-300: light-dark(#b6d0ea, #2b4666);
+  --cool-700: light-dark(#1f5a94, #8db8e6); /* ~7:1 on its background: text and links */
+
+  --bg: var(--cool-50);
+  --surface: light-dark(#fff, #131b27);
+  --surface-alt: var(--cool-100);
+  --text: light-dark(#333, #f2f2f2); /* Unigrey in light */
+  --text-muted: light-dark(#55606b, #a9b4c0);
+  --border: light-dark(#d9e4ef, #25344a);
+  --link: var(--cool-700);
+  --header-bg: light-dark(#fff, #000);
+  --header-text: light-dark(#111, #fff);
+  --header-hover: light-dark(rgb(0 0 0 / 0.07), rgb(255 255 255 / 0.14));
+  --on-gold: #000;
+
+  /* Primary buttons: black in light, white in dark */
+  --btn-bg: light-dark(#000, #fff);
+  --btn-text: light-dark(#fff, #000);
+
+  --free: light-dark(#15803d, #4ade80);
+  --booked: light-dark(#6b7280, #9ca3af);
+  --error: light-dark(#b91c1c, #f87171);
+
+  --radius: 12px;
+  --shadow-color: light-dark(rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.5));
+  --shadow: 0 4px 16px var(--shadow-color);
+  --tap: 44px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  padding: 2rem;
-  font-family: system-ui, sans-serif;
-  line-height: 1.6;
-  color: #1a1a1a;
+  font-family: var(--font);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  font-variant-numeric: tabular-nums;
 }
 
 main {
-  max-width: 40rem;
+  max-width: 72rem;
   margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+main.narrow {
+  max-width: 38rem;
+}
+
+main.prose {
+  max-width: 44rem;
+}
+
+h1 {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  margin: 0 0 1rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+  line-height: 1.3;
+  margin: 1.5rem 0 0.5rem;
+}
+
+p {
+  margin: 0 0 0.75rem;
 }
 
 a {
-  color: #0b5fff;
+  color: var(--link);
+  text-decoration-color: var(--gold);
+  text-underline-offset: 0.2em;
 }
 
+:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.lede {
+  color: var(--text-muted);
+  margin-top: -0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  position: absolute;
+  left: 0.5rem;
+  top: -4rem;
+  z-index: 100;
+  padding: 0.6rem 1rem;
+  background: var(--gold);
+  color: var(--on-gold);
+  border-radius: var(--radius);
+}
+
+.skip:focus {
+  top: 0.5rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.stack > * + * {
+  margin-top: 0.75rem;
+}
+
+/* Header: black bar, white text, gold marks the active item. */
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 1.25rem;
+  padding: 0 1rem;
+  background: var(--header-bg);
+  color: var(--header-text);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar a,
+.topbar summary {
+  color: var(--header-text);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 3.5rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.brand-mark {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 3px;
+  background: var(--gold);
+}
+
+.tabs {
+  display: flex;
+  gap: 0 1.25rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  order: 3;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.tabs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 0.15rem;
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+}
+
+.tabs a:hover,
+.tabs a[aria-current="page"] {
+  border-bottom-color: var(--gold);
+}
+
+.tabs a[aria-current="page"] {
+  font-weight: 600;
+}
+
+@media (min-width: 48rem) {
+  .tabs {
+    order: 0;
+    width: auto;
+    overflow: visible;
+  }
+  .tabs a {
+    min-height: 3.5rem;
+  }
+}
+
+.actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.icon-link,
+.menu summary {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  border-radius: 999px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.icon-link:hover,
+.menu summary:hover,
+.menu[open] summary {
+  background: var(--header-hover);
+}
+
+.icon-link[aria-current="page"] {
+  background: var(--header-hover);
+}
+
+.icon-link .count {
+  position: absolute;
+  top: 2px;
+  right: 0;
+}
+
+/* Theme toggle: shown only once the head script has set data-theme, so it
+   never appears as a dead button without JavaScript. */
+.topbar .theme-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--header-text);
+}
+
+html[data-theme] .topbar .theme-toggle {
+  display: inline-flex;
+}
+
+.topbar .theme-toggle:hover {
+  background: var(--header-hover);
+  color: var(--header-text);
+}
+
+/* Show the icon for the mode you're in: sun in light, moon in dark */
+html[data-theme="dark"] .theme-toggle .ico-sun,
+html[data-theme="light"] .theme-toggle .ico-moon {
+  display: none;
+}
+
+.theme-toggle span {
+  display: inline-flex;
+}
+
+.menu {
+  position: relative;
+}
+
+.menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.25rem);
+  z-index: 20;
+  min-width: 15rem;
+  padding: 0.9rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.menu-panel a:not(.button) {
+  color: var(--link);
+}
+
+.menu-who {
+  margin-bottom: 0.5rem;
+}
+
+.menu-links {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+
+.menu-links a {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+}
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--on-gold);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.site-footer {
+  padding: 1.5rem 1rem 2rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.site-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 0.5rem;
+}
+
+/* Controls */
 form {
   display: flex;
   flex-wrap: wrap;
@@ -23,18 +384,523 @@ form {
   margin-block: 1.5rem;
 }
 
-input {
+.inline-form {
+  margin: 0;
+}
+
+label {
+  font-weight: 600;
+}
+
+input,
+select {
   flex: 1;
-  min-width: 12rem;
-  padding: 0.4rem 0.6rem;
+  min-width: 0;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.4rem 0.75rem;
   font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
-button {
-  padding: 0.4rem 1rem;
+button,
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 0.4rem 1.25rem;
   font: inherit;
+  font-weight: 600;
+  color: var(--btn-text);
+  background: var(--btn-bg);
+  border: 2px solid var(--btn-bg);
+  border-radius: 999px;
+  cursor: pointer;
+  text-decoration: none;
 }
 
-#messages {
-  padding-inline-start: 1.2rem;
+button:not(:disabled):hover,
+.button:hover {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--on-gold);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.button-quiet {
+  color: var(--text);
+  background: transparent;
+  border-color: var(--border);
+}
+
+.button.is-off {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.menu-panel .button {
+  width: 100%;
+}
+
+/* Surfaces */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+a.card:hover {
+  border-color: var(--cool-300);
+  box-shadow: var(--shadow);
+}
+
+/* An inset bar, not a wider border, so selecting a card doesn't shift its text */
+.card[aria-current="true"],
+a.card[aria-current="true"]:hover {
+  box-shadow: inset 4px 0 0 var(--gold);
+}
+
+/* Tool areas: the search filter bar and the timetable header */
+.panel {
+  background: var(--surface-alt);
+  border: 1px solid var(--cool-300);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+/* Info callout: blue, for neutral information. Gold callouts are for things
+   to watch (the demo-only note, "seats aren't guaranteed"). */
+.callout-info,
+.callout {
+  display: block;
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+
+.callout-info {
+  background: var(--cool-100);
+  border: 1px solid var(--cool-300);
+}
+
+.callout {
+  background: var(--gold-tint);
+  border: 1px solid var(--gold);
+  color: var(--text);
+}
+
+.callout-info svg {
+  vertical-align: -0.2em;
+}
+
+.error {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--error);
+  border-radius: var(--radius);
+  color: var(--error);
+  font-weight: 600;
+}
+
+/* Status badges. Each carries an icon and a word in the markup. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid currentcolor;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-free {
+  color: var(--free);
+}
+
+.badge-booked {
+  color: var(--booked);
+}
+
+/* "Shared, seats open" is the gold state: dark text on the gold tint. */
+.badge-shared {
+  color: var(--text);
+  background: var(--gold-tint);
+  border-color: var(--gold);
+}
+
+/* Unread count on the inbox icon */
+.count {
+  min-width: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--on-gold);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Search */
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+  margin-block: 0 1.5rem;
+}
+
+.filters label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.search-layout {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.search-layout h2:first-child {
+  margin-top: 0;
+}
+
+.results {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.result {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.result-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+}
+
+.meta {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.sheet {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  box-shadow: var(--shadow);
+}
+
+.sheet h2 {
+  margin-top: 0;
+}
+
+.sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1rem;
+}
+
+.sheet-empty {
+  display: none;
+}
+
+.slots {
+  list-style: none;
+  margin: 0.75rem 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.slots li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: var(--tap);
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.slots li[aria-current="true"] {
+  border: 2px solid var(--gold);
+}
+
+.slot-time {
+  font-weight: 600;
+  min-width: 7.5rem;
+}
+
+/* Below 60rem the details open as a bottom sheet over the results. */
+@media (max-width: 59.99rem) {
+  .sheet.is-open {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 30;
+    max-height: 80vh;
+    overflow-y: auto;
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom: 0;
+  }
+}
+
+@media (min-width: 60rem) {
+  .search-layout {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    align-items: start;
+  }
+  .sheet {
+    position: sticky;
+    top: 1rem;
+  }
+  .sheet-empty {
+    display: block;
+    padding: 2rem 1rem;
+    text-align: center;
+    border: 1px dashed var(--cool-300);
+    border-radius: var(--radius);
+  }
+}
+
+/* Timetable */
+.timetable-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.timetable-head h2 {
+  margin: 0;
+}
+
+.scroll {
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  min-width: 46rem;
+}
+
+.grid th,
+.grid td {
+  padding: 0;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+.grid thead th {
+  background: var(--surface-alt);
+  font-size: 0.8rem;
+  padding: 0.5rem 0.25rem;
+}
+
+.grid tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 10.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+  text-align: left;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.grid thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.cell {
+  position: relative; /* anchors the screen-reader-only labels inside the cell */
+  min-width: 3.25rem;
+}
+
+.cap {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.cell a,
+.cell > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 100%;
+  min-height: var(--tap);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.cell-free a {
+  color: var(--free);
+}
+
+.cell-free a:hover,
+.cell-shared a:hover {
+  background: var(--cool-100);
+}
+
+.cell-shared {
+  background: var(--gold-tint);
+}
+
+.cell-booked {
+  background: var(--surface-alt);
+  color: var(--booked);
+}
+
+.cell-booked > span {
+  color: var(--booked);
+}
+
+.cell-past {
+  opacity: 0.4;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+/* Login, inbox, bookings */
+.login-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-block: 1rem 0;
+}
+
+.login-form label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.accounts {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+button.account {
+  display: flex;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+button.account:hover {
+  background: var(--gold-tint);
+  border-color: var(--gold);
+  color: var(--text);
+}
+
+.messages {
+  list-style: none;
+  margin: 1rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.message[data-unread] {
+  box-shadow: inset 4px 0 0 var(--gold);
+}
+
+.message-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.usage {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.usage-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.meter {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.meter > span {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  button,
+  .button,
+  .tabs a,
+  a.card {
+    transition:
+      background-color 150ms,
+      border-color 150ms,
+      box-shadow 150ms,
+      color 150ms;
+  }
 }

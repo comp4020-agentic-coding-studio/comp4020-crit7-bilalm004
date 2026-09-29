@@ -1,53 +1,335 @@
 ---
-import { listMessages } from "../lib/db";
-import "../styles.css";
+import Icon from "../components/Icon.astro";
+import Base from "../layouts/Base.astro";
+import {
+  KIND_LABEL,
+  KINDS,
+  LIBRARIES,
+  SPACES,
+  getSpace,
+  libraryName,
+  type Space,
+} from "../lib/rooms";
+import { ADVANCE_DAYS, POOLS, poolOf } from "../lib/rules";
+import { sampleBookings, sampleState, usageToday, type State } from "../lib/sample";
+import { bookableDates, canberraNow, dateLabel, hourLabel, slotLabel } from "../lib/time";
+import { getUser } from "../lib/users";
 
-const messages = listMessages();
+const user = getUser(Astro.cookies);
+const q = Astro.url.searchParams;
+const now = canberraNow();
+const dates = bookableDates(now.date, ADVANCE_DAYS);
+
+const pick = (value: string | null, allowed: readonly string[], fallback: string) =>
+  allowed.includes(value ?? "") ? (value as string) : fallback;
+const int = (value: string | null, min: number, max: number, fallback: number) => {
+  const n = Number.parseInt(value ?? "", 10);
+  return Number.isInteger(n) && n >= min && n <= max ? n : fallback;
+};
+
+const library = pick(q.get("library"), ["all", ...LIBRARIES.map((l) => l.id)], "all");
+const kind = pick(q.get("kind"), ["any", ...KINDS], "any");
+const date = pick(q.get("date"), dates, now.date);
+const hour = int(q.get("time"), 0, 23, date === now.date ? Math.min(now.hour + 1, 23) : 9);
+const people = int(q.get("people"), 1, 8, 1);
+const sort = pick(q.get("sort"), ["best", "seats", "name"], "best");
+const selectedId = q.get("space");
+
+type Free = Extract<State, { kind: "free" }>;
+type Shared = Extract<State, { kind: "shared" }>;
+type Result = { space: Space; state: Free | Shared };
+
+const results: Result[] = [];
+for (const space of SPACES) {
+  if (library !== "all" && space.library !== library) continue;
+  if (kind !== "any" && space.kind !== kind) continue;
+  const state = sampleState(space, date, hour, now);
+  if (state.kind === "free" && space.capacity >= people) results.push({ space, state });
+  if (state.kind === "shared" && state.spare >= people) results.push({ space, state });
+}
+const seats = (r: Result) => (r.state.kind === "shared" ? r.state.spare : r.space.capacity);
+if (sort === "best") {
+  results.sort((a, b) => seats(a) - people - (seats(b) - people) || a.space.order - b.space.order);
+} else if (sort === "seats") {
+  results.sort((a, b) => seats(b) - seats(a) || a.space.order - b.space.order);
+}
+const SHOWN = 40;
+const shown = results.slice(0, SHOWN);
+
+const href = (extra: Record<string, string | null> = {}) => {
+  const p = new URLSearchParams({
+    library,
+    kind,
+    date,
+    time: hourLabel(hour),
+    people: String(people),
+    sort,
+  });
+  for (const [k, v] of Object.entries(extra)) {
+    if (v === null) p.delete(k);
+    else p.set(k, v);
+  }
+  return `/?${p}`;
+};
+
+const selected = selectedId ? getSpace(selectedId) : undefined;
+const slotHours = Array.from({ length: Math.min(8, 24 - hour) }, (_, i) => hour + i);
+const usage = user ? usageToday(sampleBookings(now), now) : null;
+const timePassed = date === now.date && hour < now.hour;
+const summary = [
+  library === "all" ? "All libraries" : libraryName(library as never),
+  kind === "any" ? "any type" : KIND_LABEL[kind as keyof typeof KIND_LABEL],
+  `${dateLabel(date)}, ${slotLabel(hour)}`,
+  `${people} ${people === 1 ? "person" : "people"}`,
+].join(" · ");
 ---
 
-<!doctype html>
-<html lang="en-AU">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>COMP4020 prototype</title>
-  </head>
-  <body>
-    <nav aria-label="site">
-      <a href="/">Guestbook</a>
-      <a href="/readme/">About</a>
-    </nav>
-    <main>
-      <h1>Guestbook</h1>
-      <p>
-        A minimal full-stack starter: messages live in SQLite on the machine's
-        volume (state survives a reload and a redeploy), and new messages
-        appear in every open tab over a server-sent-events stream — open this
-        page twice and sign it in one. Replace all of this with your own
-        prototype.
-      </p>
-      <form method="post" action="/api/messages">
-        <label for="body">Leave a message</label>
-        <input id="body" name="body" required maxlength="500" />
-        <button>Sign</button>
-      </form>
-      <ul id="messages">
-        {messages.map((message) => <li>{message.body}</li>)}
-      </ul>
-    </main>
-    <script>
-      // The live half of the demo: subscribe to the SSE stream and prepend
-      // messages as they arrive. The form itself needs none of this — its
-      // POST + redirect re-renders the submitting tab from SQLite; this
-      // stream is how every other tab finds out.
-      const list = document.querySelector("#messages");
-      const source = new EventSource("/api/events");
-      source.addEventListener("message", (event) => {
-        const message = JSON.parse(event.data);
-        const item = document.createElement("li");
-        item.textContent = message.body;
-        list?.prepend(item);
-      });
-    </script>
-  </body>
-</html>
+<Base title="Find a study space" current="search">
+  <main id="main">
+    <h1>Find a study space</h1>
+    <p class="lede">
+      Filter, then pick an option. Shared bookings with spare seats appear beside free spaces.
+    </p>
+
+    <form class="panel filters" method="get" action="/" aria-label="Search filters">
+      <label>
+        Library
+        <select name="library">
+          <option value="all" selected={library === "all"}>All libraries</option>
+          {
+            LIBRARIES.map((l) => (
+              <option value={l.id} selected={library === l.id}>
+                {l.name}
+              </option>
+            ))
+          }
+        </select>
+      </label>
+      <label>
+        Space type
+        <select name="kind">
+          <option value="any" selected={kind === "any"}>Any type</option>
+          {
+            KINDS.map((k) => (
+              <option value={k} selected={kind === k}>
+                {KIND_LABEL[k]}
+              </option>
+            ))
+          }
+        </select>
+      </label>
+      <label>
+        Date
+        <select name="date">
+          {
+            dates.map((d, i) => (
+              <option value={d} selected={date === d}>
+                {dateLabel(d)}
+                {i === 0 ? " (today)" : ""}
+              </option>
+            ))
+          }
+        </select>
+      </label>
+      <label>
+        Start time
+        <select name="time">
+          {
+            Array.from({ length: 24 }, (_, h) => (
+              <option value={hourLabel(h)} selected={hour === h}>
+                {hourLabel(h)}
+              </option>
+            ))
+          }
+        </select>
+      </label>
+      <label>
+        People
+        <select name="people">
+          {
+            Array.from({ length: 8 }, (_, i) => i + 1).map((n) => (
+              <option value={n} selected={people === n}>
+                {n}
+              </option>
+            ))
+          }
+        </select>
+      </label>
+      <label>
+        Sort by
+        <select name="sort">
+          <option value="best" selected={sort === "best"}>Best fit</option>
+          <option value="seats" selected={sort === "seats"}>Most seats</option>
+          <option value="name" selected={sort === "name"}>Name</option>
+        </select>
+      </label>
+      <button type="submit">Search</button>
+    </form>
+
+    <div class="search-layout">
+      <section aria-labelledby="results-heading">
+        <h2 id="results-heading">{`${results.length} ${results.length === 1 ? "option" : "options"}`}</h2>
+        <p class="muted">{summary}</p>
+
+        {
+          results.length === 0 && (
+            <p class="callout-info" role="status">
+              {timePassed
+                ? "That time has already passed. Pick a later hour."
+                : "Nothing fits. Try another time, fewer people, or a different library."}
+            </p>
+          )
+        }
+
+        <ul class="results">
+          {
+            shown.map(({ space, state }) => (
+              <li>
+                <a
+                  class="card result"
+                  href={href({ space: space.id })}
+                  aria-current={selected?.id === space.id ? "true" : undefined}
+                >
+                  <span class="result-top">
+                    <strong>{space.name}</strong>
+                    {state.kind === "free" ? (
+                      <span class="badge badge-free">
+                        <Icon name="check" size={16} /> Free · {space.capacity}{" "}
+                        {space.capacity === 1 ? "seat" : "seats"}
+                      </span>
+                    ) : (
+                      <span class="badge badge-shared">
+                        <Icon name="users" size={16} /> {state.spare} of {space.capacity} seats open
+                      </span>
+                    )}
+                  </span>
+                  <span class="meta">
+                    {libraryName(space.library)} · {KIND_LABEL[space.kind]} · {slotLabel(hour)}
+                    {state.kind === "shared" && <> · Booked by {state.booker ?? "A student"}</>}
+                  </span>
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+        {
+          results.length > SHOWN && (
+            <p class="muted">
+              Showing the first {SHOWN} of {results.length}. Narrow the filters to see the rest.
+            </p>
+          )
+        }
+      </section>
+
+      {
+        selected ? (
+          <section class="sheet is-open" id="details" aria-labelledby="details-heading">
+            <div class="sheet-head">
+              <div>
+                <h2 id="details-heading">{selected.name}</h2>
+                <p class="muted">
+                  {libraryName(selected.library)} · {KIND_LABEL[selected.kind]} · capacity{" "}
+                  {selected.capacity}
+                </p>
+              </div>
+              <a class="button button-quiet" href={href({ space: null })}>
+                Close
+              </a>
+            </div>
+
+            <p class="muted">{dateLabel(date)}. Each booking is one hour.</p>
+            <ul class="slots">
+              {slotHours.map((h) => {
+                const state = sampleState(selected, date, h, now);
+                return (
+                  <li aria-current={h === hour ? "true" : undefined}>
+                    <span class="slot-time">{slotLabel(h)}</span>
+                    {state.kind === "free" && (
+                      <>
+                        <span class="badge badge-free">
+                          <Icon name="check" size={16} /> Free
+                        </span>
+                        {user ? (
+                          <button type="button" disabled>
+                            Book
+                          </button>
+                        ) : (
+                          <a class="button" href="/login/">
+                            Sign in to book
+                          </a>
+                        )}
+                      </>
+                    )}
+                    {state.kind === "shared" && (
+                      <>
+                        <span class="badge badge-shared">
+                          <Icon name="users" size={16} /> {state.spare} seat
+                          {state.spare === 1 ? "" : "s"} open
+                        </span>
+                        {user ? (
+                          <button type="button" disabled>
+                            Join
+                          </button>
+                        ) : (
+                          <a class="button" href="/login/">
+                            Sign in to join
+                          </a>
+                        )}
+                      </>
+                    )}
+                    {state.kind === "booked" && (
+                      <span class="badge badge-booked">
+                        <Icon name="lock" size={16} /> Booked
+                      </span>
+                    )}
+                    {state.kind === "past" && <span class="muted">Passed</span>}
+                  </li>
+                );
+              })}
+            </ul>
+
+            {(() => {
+              const state = sampleState(selected, date, hour, now);
+              return (
+                state.kind === "shared" && (
+                  <div class="stack">
+                    <p class="callout" role="note">
+                      <strong>Seats on a shared booking aren’t guaranteed.</strong> The booker may
+                      not turn up, or may use more space than they said.
+                    </p>
+                    <p class="muted">
+                      Booked by <strong>{state.booker ?? "A student"}</strong>
+                      {state.booker ? "" : " (name hidden by the booker)"}.
+                    </p>
+                    {state.requests ? (
+                      <button type="button" disabled>
+                        Ask the booker
+                      </button>
+                    ) : (
+                      <p class="muted">The booker isn’t accepting requests for this booking.</p>
+                    )}
+                  </div>
+                )
+              );
+            })()}
+
+            {
+              user && usage && (
+                <p class="muted">
+                  Today you’ve used {usage[poolOf(selected.kind)]} of{" "}
+                  {POOLS[poolOf(selected.kind)].limit} {POOLS[poolOf(selected.kind)].label.toLowerCase()} bookings.
+                </p>
+              )
+            }
+            <p class="callout-info">
+              <Icon name="info" size={16} /> Prototype: this shows sample data, and booking isn’t
+              connected to the database yet.
+            </p>
+          </section>
+        ) : (
+          <p class="sheet-empty muted">Select an option to see its details and other times.</p>
+        )
+      }
+    </div>
+  </main>
+</Base>

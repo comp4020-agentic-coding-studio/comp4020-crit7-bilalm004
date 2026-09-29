@@ -1,0 +1,158 @@
+---
+import Icon from "../components/Icon.astro";
+import { unreadCount } from "../lib/sample";
+import { getUser } from "../lib/users";
+import "../styles.css";
+
+interface Props {
+  title: string;
+  current?: "search" | "timetable" | "bookings" | "inbox" | "login" | "about";
+}
+const { title, current } = Astro.props;
+
+const user = getUser(Astro.cookies);
+const unread = user ? unreadCount() : 0;
+const initials = user?.name
+  .split(" ")
+  .map((part) => part[0])
+  .join("");
+
+const tabs = [
+  { key: "search", href: "/", label: "Search" },
+  { key: "timetable", href: "/timetable/", label: "Timetable" },
+  ...(user ? [{ key: "bookings", href: "/bookings/", label: "My bookings" }] : []),
+] as const;
+---
+
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>{title} · Study spaces</title>
+    <script is:inline>
+      // Runs before first paint so the chosen theme never flashes. A saved
+      // choice wins; otherwise follow the system. Blocked storage is fine.
+      var t;
+      try {
+        t = localStorage.getItem("theme");
+      } catch (e) {}
+      if (t !== "light" && t !== "dark") {
+        t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+      document.documentElement.dataset.theme = t;
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <nav class="topbar" aria-label="site">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Study spaces</a>
+      <ul class="tabs">
+        {
+          tabs.map((tab) => (
+            <li>
+              <a href={tab.href} aria-current={current === tab.key ? "page" : undefined}>
+                {tab.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+      <div class="actions">
+        <button class="theme-toggle" type="button" aria-label="Switch colour theme">
+          <span class="ico-moon"><Icon name="moon" size={22} /></span>
+          <span class="ico-sun"><Icon name="sun" size={22} /></span>
+        </button>
+        {
+          user && (
+            <a
+              class="icon-link"
+              href="/inbox/"
+              aria-label={`Inbox, ${unread} unread`}
+              aria-current={current === "inbox" ? "page" : undefined}
+            >
+              <Icon name="inbox" size={22} />
+              {unread > 0 && <span class="count">{unread}</span>}
+            </a>
+          )
+        }
+        <details class="menu">
+          <summary aria-label="Account menu">
+            {
+              user ? (
+                <span class="avatar" aria-hidden="true">
+                  {initials}
+                </span>
+              ) : (
+                <Icon name="user" size={22} />
+              )
+            }
+          </summary>
+          <div class="menu-panel">
+            {
+              user ? (
+                <>
+                  <p class="menu-who">
+                    <strong>{user.name}</strong>
+                    <br />
+                    <span class="muted">{user.id} · demo account</span>
+                  </p>
+                  <ul class="menu-links">
+                    <li>
+                      <a href="/bookings/">My bookings</a>
+                    </li>
+                    <li>
+                      <a href="/inbox/">Inbox</a>
+                    </li>
+                    <li>
+                      <a href="/readme/">About this app</a>
+                    </li>
+                  </ul>
+                  <form class="inline-form" method="post" action="/api/logout">
+                    <button type="submit">Sign out</button>
+                  </form>
+                </>
+              ) : (
+                <>
+                  <p class="menu-who">You’re not signed in.</p>
+                  <ul class="menu-links">
+                    <li>
+                      <a href="/readme/">About this app</a>
+                    </li>
+                  </ul>
+                  <a class="button" href="/login/">
+                    Sign in
+                  </a>
+                </>
+              )
+            }
+          </div>
+        </details>
+      </div>
+    </nav>
+    <slot />
+    <script>
+      const root = document.documentElement;
+      const button = document.querySelector<HTMLButtonElement>(".theme-toggle");
+      const describe = () =>
+        button?.setAttribute(
+          "aria-label",
+          root.dataset.theme === "dark" ? "Switch to light mode" : "Switch to dark mode",
+        );
+      describe();
+      button?.addEventListener("click", () => {
+        const next = root.dataset.theme === "dark" ? "light" : "dark";
+        root.dataset.theme = next;
+        try {
+          localStorage.setItem("theme", next);
+        } catch {}
+        describe();
+      });
+    </script>
+    <footer class="site-footer">
+      Demo app for COMP4020. Sample data only, and the sign-in is a demo.{" "}
+      <a href="/readme/">About</a>
+    </footer>
+  </body>
+</html>

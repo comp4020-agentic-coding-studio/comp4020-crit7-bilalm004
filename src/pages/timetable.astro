@@ -1,0 +1,202 @@
+---
+import Icon from "../components/Icon.astro";
+import Base from "../layouts/Base.astro";
+import { KIND_LABEL, KINDS, LIBRARIES, SPACES, libraryName } from "../lib/rooms";
+import { ADVANCE_DAYS } from "../lib/rules";
+import { sampleState } from "../lib/sample";
+import { bookableDates, canberraNow, dateLabel, hourLabel } from "../lib/time";
+
+const q = Astro.url.searchParams;
+const now = canberraNow();
+const dates = bookableDates(now.date, ADVANCE_DAYS);
+
+const pick = (value: string | null, allowed: readonly string[], fallback: string) =>
+  allowed.includes(value ?? "") ? (value as string) : fallback;
+
+const library = pick(q.get("library"), LIBRARIES.map((l) => l.id), "chifley");
+const kind = pick(q.get("kind"), ["any", ...KINDS], "study_room");
+const date = pick(q.get("date"), dates, now.date);
+
+// A 12-hour window, moved earlier and later with links (no JavaScript).
+const WINDOW = 12;
+const fromParam = Number.parseInt(q.get("from") ?? "", 10);
+const defaultFrom = date === now.date ? Math.min(now.hour, 24 - WINDOW) : 8;
+const from = Number.isInteger(fromParam)
+  ? Math.max(0, Math.min(fromParam, 24 - WINDOW))
+  : defaultFrom;
+const hours = Array.from({ length: WINDOW }, (_, i) => from + i);
+
+const spaces = SPACES.filter(
+  (s) => s.library === library && (kind === "any" || s.kind === kind),
+);
+
+const link = (extra: Record<string, string>) =>
+  `/timetable/?${new URLSearchParams({ library, kind, date, from: String(from), ...extra })}`;
+const details = (spaceId: string, h: number) =>
+  `/?${new URLSearchParams({ library, kind: "any", date, time: hourLabel(h), people: "1", sort: "best", space: spaceId })}`;
+const earlier = Math.max(0, from - 6);
+const later = Math.min(24 - WINDOW, from + 6);
+---
+
+<Base title="Timetable" current="timetable">
+  <main id="main">
+    <h1>Timetable</h1>
+    <p class="lede">
+      The whole day for one library. Choose a free or shared cell to see its details.
+    </p>
+
+    <form class="panel filters" method="get" action="/timetable/" aria-label="Timetable filters">
+      <label>
+        Library
+        <select name="library">
+          {
+            LIBRARIES.map((l) => (
+              <option value={l.id} selected={library === l.id}>
+                {l.name}
+              </option>
+            ))
+          }
+        </select>
+      </label>
+      <label>
+        Space type
+        <select name="kind">
+          <option value="any" selected={kind === "any"}>Any type</option>
+          {
+            KINDS.map((k) => (
+              <option value={k} selected={kind === k}>
+                {KIND_LABEL[k]}
+              </option>
+            ))
+          }
+        </select>
+      </label>
+      <label>
+        Date
+        <select name="date">
+          {
+            dates.map((d, i) => (
+              <option value={d} selected={date === d}>
+                {dateLabel(d)}
+                {i === 0 ? " (today)" : ""}
+              </option>
+            ))
+          }
+        </select>
+      </label>
+      <button type="submit">Show</button>
+    </form>
+
+    <div class="timetable-head">
+      <h2>{libraryName(library as never)} · {dateLabel(date)}</h2>
+      <p class="row">
+        {
+          from > 0 ? (
+            <a class="button button-quiet" href={link({ from: String(earlier) })}>
+              ← Earlier
+            </a>
+          ) : (
+            <span class="button button-quiet is-off" aria-hidden="true">
+              ← Earlier
+            </span>
+          )
+        }
+        {
+          from < 24 - WINDOW ? (
+            <a class="button button-quiet" href={link({ from: String(later) })}>
+              Later →
+            </a>
+          ) : (
+            <span class="button button-quiet is-off" aria-hidden="true">
+              Later →
+            </span>
+          )
+        }
+      </p>
+    </div>
+
+    {
+      spaces.length === 0 ? (
+        <p class="callout-info" role="status">
+          This library has no spaces of that type. Try another type.
+        </p>
+      ) : (
+        <div class="scroll" role="region" aria-label="Timetable, scrolls sideways" tabindex="0">
+          <table class="grid">
+            <thead>
+              <tr>
+                <th scope="col">
+                  <span class="sr-only">Space</span>
+                </th>
+                {hours.map((h) => (
+                  <th scope="col">{hourLabel(h)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {spaces.map((space) => (
+                <tr>
+                  <th scope="row">
+                    {space.name}
+                    <span class="cap">
+                      {space.capacity} {space.capacity === 1 ? "seat" : "seats"}
+                    </span>
+                  </th>
+                  {hours.map((h) => {
+                    const state = sampleState(space, date, h, now);
+                    const label = `${space.name}, ${hourLabel(h)}`;
+                    if (state.kind === "past")
+                      return (
+                        <td class="cell cell-past">
+                          <span>
+                            <span class="sr-only">{label}, passed</span>
+                          </span>
+                        </td>
+                      );
+                    if (state.kind === "booked")
+                      return (
+                        <td class="cell cell-booked">
+                          <span>
+                            <Icon name="lock" size={16} />
+                            <span class="sr-only">{label}, booked</span>
+                          </span>
+                        </td>
+                      );
+                    if (state.kind === "shared")
+                      return (
+                        <td class="cell cell-shared">
+                          <a
+                            href={details(space.id, h)}
+                            aria-label={`${label}, ${state.spare} seats open`}
+                          >
+                            <Icon name="users" size={16} /> {state.spare}
+                          </a>
+                        </td>
+                      );
+                    return (
+                      <td class="cell cell-free">
+                        <a href={details(space.id, h)} aria-label={`${label}, free`}>
+                          <Icon name="check" size={16} />
+                        </a>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    }
+
+    <p class="legend" aria-label="Legend">
+      <span class="badge badge-free"><Icon name="check" size={16} /> Free</span>
+      <span class="badge badge-shared"><Icon name="users" size={16} /> Seats open (number)</span>
+      <span class="badge badge-booked"><Icon name="lock" size={16} /> Booked</span>
+    </p>
+    <p class="callout-info">
+      <Icon name="info" size={16} /> Prototype: this shows sample data. The number after the icon is how
+      many seats are open on a shared booking.
+    </p>
+  </main>
+</Base>

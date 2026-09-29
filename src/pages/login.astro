@@ -1,0 +1,75 @@
+---
+import Base from "../layouts/Base.astro";
+import { DEMO_USERS, getUser, safeNext } from "../lib/users";
+
+const user = getUser(Astro.cookies);
+const next = safeNext(Astro.url.searchParams.get("next"));
+const failed = Astro.url.searchParams.has("error");
+---
+
+<Base title="Sign in" current="login">
+  <main id="main" class="narrow">
+    <h1>Sign in</h1>
+
+    <p class="callout" role="note">
+      <strong>Demo only.</strong> This is not the real ANU sign-in. Use one of the five demo accounts
+      below. The password is the same as the username.
+    </p>
+
+    {
+      user && (
+        <p class="callout-info" role="status">
+          You’re signed in as <strong>{user.name}</strong> ({user.id}).
+        </p>
+      )
+    }
+    {
+      failed && (
+        <p class="error" role="alert">
+          That username and password don’t match a demo account.
+        </p>
+      )
+    }
+
+    <form class="panel login-form" method="post" action="/api/login">
+      <input type="hidden" name="next" value={next} />
+      <label>
+        Username
+        <input name="id" autocomplete="username" required placeholder="u1000001" />
+      </label>
+      <label>
+        Password
+        <input name="password" type="password" autocomplete="current-password" required />
+      </label>
+      <button type="submit">Sign in</button>
+    </form>
+
+    <h2>Or pick a demo account</h2>
+    <ul class="accounts">
+      {
+        DEMO_USERS.map((u) => (
+          <li>
+            <form class="inline-form" method="post" action="/api/login">
+              <input type="hidden" name="next" value={next} />
+              <input type="hidden" name="id" value={u.id} />
+              <input type="hidden" name="password" value={u.id} />
+              <button class="account" type="submit">
+                <span class="avatar" aria-hidden="true">
+                  {u.name
+                    .split(" ")
+                    .map((p) => p[0])
+                    .join("")}
+                </span>
+                <span>
+                  <strong>{u.name}</strong>
+                  <br />
+                  <span class="muted">{u.id}</span>
+                </span>
+              </button>
+            </form>
+          </li>
+        ))
+      }
+    </ul>
+  </main>
+</Base>
