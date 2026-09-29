@@ -5,6 +5,8 @@ import type { Kind } from "./rooms";
 
 export const ADVANCE_DAYS = 14;
 export const BOOKING_HOURS = 1;
+/** Joiners can check in from this many minutes before the hour until it ends (a demo assumption). */
+export const CHECKIN_EARLY_MINUTES = 15;
 
 export type PoolId = "rooms" | "desks" | "accessibility" | "microfilm";
 

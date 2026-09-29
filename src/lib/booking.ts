@@ -2,7 +2,7 @@
 // in what it needs (the bookings that could clash) and the current time, so
 // the same rules run in the server and in tests. See docs/PLAN.md.
 import { getSpace } from "./rooms";
-import { ADVANCE_DAYS, poolOf, POOLS } from "./rules";
+import { ADVANCE_DAYS, CHECKIN_EARLY_MINUTES, poolOf, POOLS } from "./rules";
 import { addDays, canberraNow, canberraToUtc, HOUR_MS } from "./time";
 
 export type Slot = { roomId: string; startUtc: string; endUtc: string };
@@ -22,7 +22,13 @@ export type BookingError =
   | "own_booking"
   | "not_shared"
   | "full"
-  | "already_joined";
+  | "already_joined"
+  | "requests_off"
+  | "already_requested"
+  | "not_joined"
+  | "already_checked_in"
+  | "too_early"
+  | "too_late";
 
 export type Verdict = { ok: true; endUtc: string } | { ok: false; error: BookingError; message: string };
 
@@ -124,5 +130,36 @@ export function validateJoin(
     return fail("full", "No seats are left on that booking.");
   if ([...myBookings, ...myJoins].some((b) => overlaps(target, b)))
     return fail("you_overlap", "You already have a booking or a join at that time.");
+  return { ok: true, endUtc: target.endUtc };
+}
+
+/** Asking the booker: the same seat and overlap rules as a join, plus the booker's switch and no repeat asks. */
+export function validateRequest(
+  target: JoinTarget & { requestsOn: boolean },
+  userId: string,
+  now: Date,
+  myBookings: Slot[],
+  myJoins: Slot[],
+  alreadyRequested: boolean,
+): Verdict {
+  if (target.userId !== userId && target.shared && !target.requestsOn)
+    return fail("requests_off", "The booker isn’t taking requests for this booking.");
+  if (alreadyRequested) return fail("already_requested", "You’ve already asked for a seat on this booking.");
+  return validateJoin(target, userId, now, myBookings, myJoins);
+}
+
+/** Checking in: only someone who joined, once, from a little before the hour until it ends. */
+export function validateCheckIn(
+  target: Slot,
+  isJoiner: boolean,
+  alreadyCheckedIn: boolean,
+  now: Date,
+): Verdict {
+  if (!isJoiner) return fail("not_joined", "You haven’t joined that booking.");
+  if (alreadyCheckedIn) return fail("already_checked_in", "You’ve already checked in.");
+  const t = now.getTime();
+  if (t < new Date(target.startUtc).getTime() - CHECKIN_EARLY_MINUTES * 60_000)
+    return fail("too_early", `You can check in from ${CHECKIN_EARLY_MINUTES} minutes before the hour.`);
+  if (t >= new Date(target.endUtc).getTime()) return fail("too_late", "That booking has ended.");
   return { ok: true, endUtc: target.endUtc };
 }

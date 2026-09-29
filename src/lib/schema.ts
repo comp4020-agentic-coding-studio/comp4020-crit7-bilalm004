@@ -35,6 +35,8 @@ export const bookings = sqliteTable(
     shared: int({ mode: "boolean" }).notNull().default(false),
     seatsUsed: int("seats_used").notNull().default(1),
     namePublic: int("name_public", { mode: "boolean" }).notNull().default(false),
+    // Whether "ask the booker" requests are accepted for this booking.
+    requestsOn: int("requests_on", { mode: "boolean" }).notNull().default(true),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),
@@ -55,6 +57,8 @@ export const joins = sqliteTable(
       .notNull()
       .references(() => bookings.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull(),
+    // Set when the joiner marks arrival (UTC ISO). Null until then.
+    checkedInAt: text("checked_in_at"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),
@@ -65,5 +69,42 @@ export const joins = sqliteTable(
   ],
 );
 
+// "Ask the booker": separate from a direct join. The requester never learns a
+// private booker's name; the booker decides. Accepting creates the join.
+export const requests = sqliteTable(
+  "requests",
+  {
+    id: int().primaryKey({ autoIncrement: true }),
+    bookingId: int("booking_id")
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    status: text().notNull().default("pending"), // pending | accepted | declined
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (t) => [uniqueIndex("requests_booking_user").on(t.bookingId, t.userId), index("requests_user").on(t.userId)],
+);
+
+// In-app inbox only. The body is written by the server and must never carry a
+// private booker's name or id.
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: int().primaryKey({ autoIncrement: true }),
+    userId: text("user_id").notNull(),
+    body: text().notNull(),
+    href: text().notNull().default("/inbox/"),
+    read: int({ mode: "boolean" }).notNull().default(false),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (t) => [index("notifications_user").on(t.userId, t.read)],
+);
+
 export type Booking = typeof bookings.$inferSelect;
 export type Join = typeof joins.$inferSelect;
+export type Request = typeof requests.$inferSelect;
+export type Notification = typeof notifications.$inferSelect;
