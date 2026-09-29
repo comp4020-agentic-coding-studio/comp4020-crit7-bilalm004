@@ -72,10 +72,12 @@ if (sort === "best") {
 const SHOWN = 40;
 const shown = results.slice(0, SHOWN);
 
-// Timetable window: 12 hours over one continuous run of bookable hours, so
+// Timetable window: 8 hours over one continuous run of bookable hours, so
 // Later carries on past midnight. `from` is hours since today 00:00 (Canberra).
-const WINDOW = 12;
-const STEP = 6;
+// Kept at 8 (17 rows x 8 = 136 cells): the axe invariant runs in jsdom under a
+// 5s limit, and at 12 hours the page took 5.1s on the slower CI runner.
+const WINDOW = 8;
+const STEP = 4;
 const maxFrom = dates.length * 24 - WINDOW;
 const from = int(q.get("from"), 0, maxFrom, Math.min(dates.indexOf(date) * 24 + hour, maxFrom));
 const cols = Array.from({ length: WINDOW }, (_, i) => {
