@@ -5,15 +5,19 @@ const TZ = "Australia/Canberra";
 
 export type Now = { date: string; hour: number };
 
+// Building an Intl formatter is slow, and the pages ask for thousands of
+// slots, so it is built once.
+const FORMAT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  hourCycle: "h23",
+});
+
 export function canberraNow(at = new Date()): Now {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(at);
+  const parts = FORMAT.formatToParts(at);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "0";
   return { date: `${get("year")}-${get("month")}-${get("day")}`, hour: Number(get("hour")) };
 }
@@ -47,7 +51,18 @@ export function slotLabel(hour: number): string {
 }
 
 /** The instant a Canberra wall-clock date and hour starts (handles daylight saving). */
+const startCache = new Map<string, number>();
 export function canberraToUtc(date: string, hour: number): Date {
+  const key = `${date}|${hour}`;
+  const hit = startCache.get(key);
+  if (hit !== undefined) return new Date(hit);
+  const t = computeStart(date, hour);
+  if (startCache.size > 5000) startCache.clear();
+  startCache.set(key, t.getTime());
+  return t;
+}
+
+function computeStart(date: string, hour: number): Date {
   const [y, m, d] = date.split("-").map(Number);
   const wanted = Date.UTC(y, m - 1, d, hour);
   let t = wanted;
