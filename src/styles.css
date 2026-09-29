@@ -550,7 +550,7 @@ a.card[aria-current="true"]:hover {
 }
 
 /* Search */
-.filters {
+.timetable-filters {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
   gap: 0.75rem;
@@ -558,10 +558,308 @@ a.card[aria-current="true"]:hover {
   margin-block: 0 1.5rem;
 }
 
-.filters label {
+.timetable-filters label {
   display: grid;
   gap: 0.25rem;
   font-size: 0.875rem;
+}
+
+/* One row of pills; each opens a small popover (a bottom sheet on a phone) */
+.filters {
+  margin: 0 0 1.5rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--cool-300);
+  border-radius: 999px;
+}
+
+.pill:hover {
+  border-color: var(--text-muted);
+}
+
+.pill:has(summary:focus-visible),
+.pill:has(.pill-x:focus-visible) {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.pill summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: var(--tap);
+  padding: 0 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 999px;
+  outline: none;
+}
+
+.pill summary::-webkit-details-marker {
+  display: none;
+}
+
+.pill summary::after {
+  content: "▾";
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+
+.pill details[open] > summary::after {
+  content: "▴";
+}
+
+.pill-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  padding: 0 0.85rem 0 0.35rem;
+  color: var(--text-muted);
+  border-radius: 0 999px 999px 0;
+}
+
+.pill-x:hover {
+  color: var(--text);
+}
+
+.pill:has(.pill-x) summary {
+  padding-right: 0.6rem;
+}
+
+.pop-body {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  gap: 0.75rem;
+  width: max-content;
+  max-width: min(92vw, 34rem);
+  margin: 0;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--cool-300);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.pop-wide {
+  width: min(92vw, 30rem);
+}
+
+.pop-body legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.pop-body legend + * {
+  clear: both;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.days {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+}
+
+@media (min-width: 30rem) {
+  .days {
+    grid-template-columns: repeat(7, 1fr);
+  }
+}
+
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: var(--tap);
+  padding: 0.25rem 1rem;
+  font-size: 0.925rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--cool-300);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chip input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--text-muted);
+}
+
+.chip:has(input:checked) {
+  color: var(--btn-text);
+  background: var(--btn-bg);
+  border-color: var(--btn-bg);
+  font-weight: 600;
+}
+
+/* Selection is a tick as well as a fill, never colour alone */
+.chip:has(input:checked)::before {
+  content: "✓";
+}
+
+.chip:has(input:focus-visible) {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.chip-day {
+  flex-direction: column;
+  gap: 0;
+  padding-inline: 0.2rem;
+  line-height: 1.2;
+}
+
+.chip-day:has(input:checked)::before {
+  content: none;
+}
+
+.chip-day > span {
+  display: grid;
+  text-align: center;
+}
+
+.chip-top {
+  font-weight: 600;
+}
+
+.chip-sub {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.stepper input {
+  flex: none;
+  width: 3.25rem;
+  text-align: center;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.stepper input::-webkit-inner-spin-button,
+.stepper input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.stepper-btn {
+  width: var(--tap);
+  padding: 0;
+  font-size: 1.25rem;
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--cool-300);
+}
+
+.stepper-btn[hidden],
+.pop-done[hidden],
+#filters-go[hidden] {
+  display: none;
+}
+
+.pop-done {
+  justify-self: stretch;
+}
+
+/* On a phone a popover is a sheet from the bottom, over a dimmed page */
+@media (max-width: 47.99rem) {
+  .pill {
+    position: static;
+  }
+
+  .pop-body,
+  .pop-wide {
+    position: fixed;
+    inset: auto 0 0 0;
+    width: auto;
+    max-width: none;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding-bottom: 1.25rem;
+    border-radius: 16px 16px 0 0;
+    border-width: 1px 0 0;
+  }
+
+  html[data-sheet] body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    background: rgb(0 0 0 / 0.4);
+  }
+}
+
+.results-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.results-head h2 {
+  margin: 0;
+}
+
+.sort {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.sort select {
+  width: auto;
 }
 
 .search-layout {

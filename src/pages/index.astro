@@ -72,105 +72,141 @@ const href = (extra: Record<string, string | null> = {}) => {
   return `/?${p}`;
 };
 
+const dayParts = (d: string) => {
+  const dt = new Date(`${d}T12:00:00Z`);
+  const f = (o: Intl.DateTimeFormatOptions) => dt.toLocaleDateString("en-AU", { ...o, timeZone: "UTC" });
+  return { weekday: f({ weekday: "short" }), rest: f({ day: "numeric", month: "short" }) };
+};
 const selected = selectedId ? getSpace(selectedId) : undefined;
 const slotHours = Array.from({ length: Math.min(8, 24 - hour) }, (_, i) => hour + i);
 const usage = user ? usageToday(sampleBookings(now), now) : null;
 const timePassed = date === now.date && hour < now.hour;
-const summary = [
-  library === "all" ? "All libraries" : libraryName(library as never),
-  kind === "any" ? "any type" : KIND_LABEL[kind as keyof typeof KIND_LABEL],
-  `${dateLabel(date)}, ${slotLabel(hour)}`,
-  `${people} ${people === 1 ? "person" : "people"}`,
-].join(" · ");
+const libraryText = library === "all" ? "All libraries" : libraryName(library as never);
+const kindText = kind === "any" ? "Any type" : KIND_LABEL[kind as keyof typeof KIND_LABEL];
+const whenText = `${date === now.date ? "Today" : `${dayParts(date).weekday} ${dayParts(date).rest}`}, ${hourLabel(hour)}`;
+const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
 ---
 
 <Base title="Find a study space" current="search">
   <main id="main">
     <h1>Find a study space</h1>
-    <p class="lede">
-      Filter, then pick an option. Shared bookings with spare seats appear beside free spaces.
-    </p>
 
-    <form class="panel filters" method="get" action="/" aria-label="Search filters">
-      <label>
-        Library
-        <select name="library">
-          <option value="all" selected={library === "all"}>All libraries</option>
-          {
-            LIBRARIES.map((l) => (
-              <option value={l.id} selected={library === l.id}>
-                {l.name}
-              </option>
-            ))
-          }
-        </select>
-      </label>
-      <label>
-        Space type
-        <select name="kind">
-          <option value="any" selected={kind === "any"}>Any type</option>
-          {
-            KINDS.map((k) => (
-              <option value={k} selected={kind === k}>
-                {KIND_LABEL[k]}
-              </option>
-            ))
-          }
-        </select>
-      </label>
-      <label>
-        Date
-        <select name="date">
-          {
-            dates.map((d, i) => (
-              <option value={d} selected={date === d}>
-                {dateLabel(d)}
-                {i === 0 ? " (today)" : ""}
-              </option>
-            ))
-          }
-        </select>
-      </label>
-      <label>
-        Start time
-        <select name="time">
-          {
-            Array.from({ length: 24 }, (_, h) => (
-              <option value={hourLabel(h)} selected={hour === h}>
-                {hourLabel(h)}
-              </option>
-            ))
-          }
-        </select>
-      </label>
-      <label>
-        People
-        <select name="people">
-          {
-            Array.from({ length: 8 }, (_, i) => i + 1).map((n) => (
-              <option value={n} selected={people === n}>
-                {n}
-              </option>
-            ))
-          }
-        </select>
-      </label>
-      <label>
-        Sort by
-        <select name="sort">
-          <option value="best" selected={sort === "best"}>Best fit</option>
-          <option value="seats" selected={sort === "seats"}>Most seats</option>
-          <option value="name" selected={sort === "name"}>Name</option>
-        </select>
-      </label>
-      <button type="submit">Search</button>
+    <form class="panel filters" id="filters" method="get" action="/" aria-label="Search filters">
+      <div class="pills">
+        <div class="pill" data-pop="library">
+          <details class="pop">
+            <summary>{libraryText}</summary>
+            <fieldset class="pop-body">
+              <legend>Library</legend>
+              <div class="chips">
+                {
+                  [{ id: "all", name: "All libraries" }, ...LIBRARIES].map((l) => (
+                    <label class="chip">
+                      <input type="radio" name="library" value={l.id} checked={library === l.id} />
+                      <span>{l.name}</span>
+                    </label>
+                  ))
+                }
+              </div>
+              <button type="button" class="pop-done" hidden>Done</button>
+            </fieldset>
+          </details>
+          {library !== "all" && <a class="pill-x" href={href({ library: "all" })} aria-label={`Clear library: ${libraryText}`}><Icon name="x" size={14} /></a>}
+        </div>
+
+        <div class="pill" data-pop="kind">
+          <details class="pop">
+            <summary>{kindText}</summary>
+            <fieldset class="pop-body">
+              <legend>Space type</legend>
+              <div class="chips">
+                <label class="chip">
+                  <input type="radio" name="kind" value="any" checked={kind === "any"} />
+                  <span>Any type</span>
+                </label>
+                {
+                  KINDS.map((k) => (
+                    <label class="chip">
+                      <input type="radio" name="kind" value={k} checked={kind === k} />
+                      <span>{KIND_LABEL[k]}</span>
+                    </label>
+                  ))
+                }
+              </div>
+              <button type="button" class="pop-done" hidden>Done</button>
+            </fieldset>
+          </details>
+          {kind !== "any" && <a class="pill-x" href={href({ kind: "any" })} aria-label={`Clear type: ${kindText}`}><Icon name="x" size={14} /></a>}
+        </div>
+
+        <div class="pill" data-pop="when" data-keep>
+          <details class="pop">
+            <summary>{whenText}</summary>
+            <fieldset class="pop-body pop-wide">
+              <legend>Date</legend>
+              <div class="chips days">
+                {
+                  dates.map((d, i) => (
+                    <label class="chip chip-day">
+                      <input type="radio" name="date" value={d} checked={date === d} />
+                      <span>
+                        <span class="chip-top">{i === 0 ? "Today" : dayParts(d).weekday}</span>
+                        <span class="chip-sub">{dayParts(d).rest}</span>
+                      </span>
+                    </label>
+                  ))
+                }
+              </div>
+              <label class="field">
+                Start time
+                <select name="time">
+                  {
+                    Array.from({ length: 24 }, (_, h) => (
+                      <option value={hourLabel(h)} selected={hour === h}>
+                        {hourLabel(h)}
+                      </option>
+                    ))
+                  }
+                </select>
+              </label>
+              <button type="button" class="pop-done" hidden>Done</button>
+            </fieldset>
+          </details>
+        </div>
+
+        <div class="pill" data-pop="people" data-keep>
+          <details class="pop">
+            <summary>{peopleText}</summary>
+            <fieldset class="pop-body">
+              <legend>People</legend>
+              <div class="stepper">
+                <button type="button" class="stepper-btn" data-step="-1" aria-label="Fewer people" hidden>−</button>
+                <input id="people" type="number" name="people" min="1" max="8" value={people} inputmode="numeric" aria-label="Number of people" />
+                <button type="button" class="stepper-btn" data-step="1" aria-label="More people" hidden>+</button>
+              </div>
+              <button type="button" class="pop-done" hidden>Done</button>
+            </fieldset>
+          </details>
+          {people > 1 && <a class="pill-x" href={href({ people: "1" })} aria-label={`Clear people: ${peopleText}`}><Icon name="x" size={14} /></a>}
+        </div>
+
+        <button type="submit" id="filters-go">Search</button>
+      </div>
     </form>
 
     <div class="search-layout">
       <section aria-labelledby="results-heading">
-        <h2 id="results-heading">{`${results.length} ${results.length === 1 ? "option" : "options"}`}</h2>
-        <p class="muted">{summary}</p>
-
+        <div class="results-head">
+          <h2 id="results-heading">{`${results.length} ${results.length === 1 ? "option" : "options"}`}</h2>
+          <label class="sort">
+            Sort
+            <select name="sort" form="filters">
+              <option value="best" selected={sort === "best"}>Best fit</option>
+              <option value="seats" selected={sort === "seats"}>Most seats</option>
+              <option value="name" selected={sort === "name"}>Name</option>
+            </select>
+          </label>
+        </div>
         {
           results.length === 0 && (
             <p class="callout-info" role="status">
@@ -333,3 +369,79 @@ const summary = [
     </div>
   </main>
 </Base>
+
+<script>
+  // Enhancement only. Without JavaScript the pills open natively and the
+  // Search button submits the form; the − / + and Done buttons stay hidden.
+  const form = document.querySelector<HTMLFormElement>("#filters");
+  if (form) {
+    const store = {
+      get: (k: string) => { try { return sessionStorage.getItem(k); } catch { return null; } },
+      set: (k: string, v: string) => { try { sessionStorage.setItem(k, v); } catch { /* ignore */ } },
+      del: (k: string) => { try { sessionStorage.removeItem(k); } catch { /* ignore */ } },
+    };
+    const pills = [...form.querySelectorAll<HTMLElement>(".pill")];
+    const details = pills.map((p) => p.querySelector<HTMLDetailsElement>("details")!);
+    const sheet = matchMedia("(max-width: 47.99rem)");
+
+    form.querySelector<HTMLElement>("#filters-go")!.hidden = true;
+    form.querySelectorAll<HTMLElement>(".stepper-btn, .pop-done").forEach((b) => (b.hidden = false));
+
+    const sync = () => {
+      const open = details.find((d) => d.open);
+      document.documentElement.toggleAttribute("data-sheet", !!open);
+      if (open) store.set("openPop", open.parentElement!.dataset.pop!);
+      else store.del("openPop");
+    };
+    // Only one open at a time; Escape, Done and clicking outside close it.
+    details.forEach((d) => {
+      d.addEventListener("toggle", () => {
+        if (d.open) details.forEach((o) => o !== d && (o.open = false));
+        sync();
+      });
+      d.querySelector(".pop-done")?.addEventListener("click", () => {
+        d.open = false;
+        d.querySelector("summary")?.focus();
+      });
+    });
+    const closeAll = () => details.forEach((d) => (d.open = false));
+    document.addEventListener("click", (e) => {
+      if (!(e.target as Element).closest(".pill")) closeAll();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const d = details.find((x) => x.open);
+      if (d) { d.open = false; d.querySelector("summary")?.focus(); }
+    });
+
+    // Date then time (and people) take a few taps, so those stay open after applying.
+    const keep = store.get("openPop");
+    const back = pills.find((p) => p.dataset.pop === keep && "keep" in p.dataset);
+    if (back) back.querySelector("details")!.open = true;
+    else store.del("openPop");
+    void sheet;
+
+    const input = form.querySelector<HTMLInputElement>("#people")!;
+    form.querySelectorAll<HTMLElement>(".stepper-btn").forEach((b) =>
+      b.addEventListener("click", () => {
+        const next = Number(input.value) + Number(b.dataset.step);
+        input.value = String(Math.min(8, Math.max(1, next)));
+        form.dispatchEvent(new Event("change", { bubbles: true }));
+      }),
+    );
+
+    // Apply on every change, keeping the scroll position across the reload.
+    const submit = () => {
+      store.set("searchScroll", String(scrollY));
+      form.requestSubmit();
+    };
+    form.addEventListener("change", submit);
+    document.querySelector<HTMLSelectElement>("select[name=sort]")?.addEventListener("change", submit);
+
+    const y = store.get("searchScroll");
+    if (y) {
+      store.del("searchScroll");
+      scrollTo(0, Number(y));
+    }
+  }
+</script>
