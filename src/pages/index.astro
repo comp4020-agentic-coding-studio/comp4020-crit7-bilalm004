@@ -22,7 +22,7 @@ const q = Astro.url.searchParams;
 const now = canberraNow();
 const dates = bookableDates(now.date, ADVANCE_DAYS);
 const occ = loadOccupancy(dates[0], dates[dates.length - 1]);
-const notice = { error: q.get("error"), booked: q.has("booked"), cancelled: q.has("cancelled") };
+const notice = { error: q.get("error"), booked: q.has("booked"), joined: q.has("joined"), left: q.has("left"), cancelled: q.has("cancelled") };
 
 const pick = (value: string | null, allowed: readonly string[], fallback: string) =>
   allowed.includes(value ?? "") ? (value as string) : fallback;
@@ -36,12 +36,20 @@ const view = pick(q.get("view"), ["list", "grid"], "list") as "list" | "grid";
 const libraryChoice = pick(q.get("library"), ["all", ...LIBRARIES.map((l) => l.id)], "all");
 const library = view === "grid" && libraryChoice === "all" ? "chifley" : libraryChoice;
 // A 60-row grid is unwieldy, so the Timetable starts on study rooms unless a type is chosen.
-const kind = pick(q.get("kind"), ["any", ...KINDS], view === "grid" ? "study_room" : "any");
+const kindChoice = pick(q.get("kind"), ["any", ...KINDS], view === "grid" ? "study_room" : "any");
+// The timetable shows one library, which may not have the type picked in the list
+// (e.g. Microfilm scanner exists only at Menzies): fall back to study rooms, not an empty grid.
+const kind =
+  view === "grid" && kindChoice !== "any" && !SPACES.some((sp) => sp.library === library && sp.kind === kindChoice)
+    ? "study_room"
+    : kindChoice;
 const date = pick(q.get("date"), dates, now.date);
 const hour = int(q.get("time"), 0, 23, date === now.date ? Math.min(now.hour + 1, 23) : 9);
 const people = int(q.get("people"), 1, 8, 1);
 const sort = pick(q.get("sort"), ["best", "seats", "name"], "best");
 const selectedId = q.get("space");
+// "Open seats now": only shared bookings with spare seats, across libraries.
+const openOnly = q.get("open") === "1";
 
 type Free = Extract<State, { kind: "free" }>;
 type Shared = Extract<State, { kind: "shared" }>;
@@ -52,7 +60,7 @@ for (const space of SPACES) {
   if (library !== "all" && space.library !== library) continue;
   if (kind !== "any" && space.kind !== kind) continue;
   const state = stateOf(space, date, hour, now, occ, user?.id);
-  if (state.kind === "free" && space.capacity >= people) results.push({ space, state });
+  if (!openOnly && state.kind === "free" && space.capacity >= people) results.push({ space, state });
   if (state.kind === "shared" && state.spare >= people) results.push({ space, state });
 }
 const seats = (r: Result) => (r.state.kind === "shared" ? r.state.spare : r.space.capacity);
@@ -93,7 +101,7 @@ const strip = Array.from({ length: 24 }, (_, h) => h)
     let shared = 0;
     for (const sp of gridSpaces) {
       const st = stateOf(sp, date, h, now, occ, user?.id);
-      if (st.kind === "free" && sp.capacity >= people) free++;
+      if (!openOnly && st.kind === "free" && sp.capacity >= people) free++;
       if (st.kind === "shared" && st.spare >= people) shared++;
     }
     return { h, total: free + shared, shared };
@@ -101,7 +109,7 @@ const strip = Array.from({ length: 24 }, (_, h) => h)
 
 const href = (extra: Record<string, string | null> = {}) => {
   const p = new URLSearchParams({
-    library,
+    library: libraryChoice,
     kind,
     date,
     time: hourLabel(hour),
@@ -109,6 +117,8 @@ const href = (extra: Record<string, string | null> = {}) => {
     sort,
     view,
   });
+  if (openOnly) p.set("open", "1");
+  if (selectedId) p.set("space", selectedId);
   if (view === "grid") p.set("from", String(from));
   for (const [k, v] of Object.entries(extra)) {
     if (v === null) p.delete(k);
@@ -138,14 +148,19 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
   <main id="main">
     <div class="page-head">
       <h1>Find a study space</h1>
-      <ViewToggle current={view} listHref={href({ view: "list", space: null })} gridHref={href({ view: "grid", space: null, kind: kind === "any" ? null : kind })} />
+      <ViewToggle current={view} listHref={href({ view: "list" })} gridHref={href({ view: "grid" })} />
     </div>
     {notice.error && <p class="error" role="alert"><Icon name="x" size={16} /> {notice.error}</p>}
     {notice.booked && <p class="callout-info" role="status"><Icon name="check" size={16} /> Booked. See it under My bookings.</p>}
+    {notice.joined && <p class="callout-info" role="status"><Icon name="check" size={16} /> You’ve joined. See it under My bookings.</p>}
+    {notice.left && <p class="callout-info" role="status"><Icon name="check" size={16} /> You’ve left that booking.</p>}
 
     <form class="panel filters" id="filters" method="get" action="/" aria-label="Search filters">
       <input type="hidden" name="view" value={view} />
+      {selectedId && <input type="hidden" name="space" value={selectedId} />}
       {view === "grid" && <input type="hidden" name="sort" value={sort} />}
+      {/* The switch is a list control; on the timetable it is only carried so it is still on when you come back. */}
+      {view === "grid" && openOnly && <input type="hidden" name="open" value="1" />}
       <div class="pills">
         <div class="pill" data-pop="library">
           <details class="pop">
@@ -243,6 +258,15 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
           </details>
           {people > 1 && <a class="pill-x" href={href({ people: "1" })} aria-label={`Clear people: ${peopleText}`}><Icon name="x" size={14} /></a>}
         </div>
+        {
+          view === "list" && (
+            <label class="pill pill-switch">
+              <input type="checkbox" role="switch" name="open" value="1" checked={openOnly} />
+              <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+              Open seats now
+            </label>
+          )
+        }
 
         <button type="submit" id="filters-go">Search</button>
       </div>
@@ -253,7 +277,7 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
         <section class="strip" aria-labelledby="strip-title">
           <div class="strip-head">
             <h2 id="strip-title">Spaces free by hour · {date === now.date ? "today" : dateLabel(date)}</h2>
-            <a href={href({ view: "grid", kind: kind === "any" ? null : kind })}>Open timetable →</a>
+            <a href={href({ view: "grid" })}>Open timetable →</a>
           </div>
           <div class="strip-scroll">
             <ol class="strip-cells">
@@ -282,7 +306,7 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
         view === "list" ? (
           <section aria-labelledby="results-heading">
         <div class="results-head">
-          <h2 id="results-heading">{`${results.length} ${results.length === 1 ? "option" : "options"}`}</h2>
+          <h2 id="results-heading">{`${results.length} ${openOnly ? "shared " : ""}${results.length === 1 ? "option" : "options"}`}</h2>
           <label class="sort">
             Sort
             <select name="sort" form="filters">
@@ -470,60 +494,6 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
             </div>
 
             <p class="muted">{dateLabel(date)}. Each booking is one hour.</p>
-            <ul class="slots">
-              {slotHours.map((h) => {
-                const state = stateOf(selected, date, h, now, occ, user?.id);
-                return (
-                  <li aria-current={h === hour ? "true" : undefined}>
-                    <span class="slot-time">{slotLabel(h)}</span>
-                    {state.kind === "free" && (
-                      <>
-                        <span class="badge badge-free">
-                          <Icon name="check" size={16} /> Free
-                        </span>
-                        {user ? (
-                          <form method="post" action="/api/book/">
-                            <input type="hidden" name="space" value={selected.id} />
-                            <input type="hidden" name="date" value={date} />
-                            <input type="hidden" name="hour" value={h} />
-                            <input type="hidden" name="next" value={href({ space: selected.id })} />
-                            <button type="submit">Book</button>
-                          </form>
-                        ) : (
-                          <a class="button" href="/login/">
-                            Sign in to book
-                          </a>
-                        )}
-                      </>
-                    )}
-                    {state.kind === "shared" && (
-                      <>
-                        <span class="badge badge-shared">
-                          <Icon name="users" size={16} /> {state.spare} seat
-                          {state.spare === 1 ? "" : "s"} open
-                        </span>
-                        {user ? (
-                          <button type="button" disabled>
-                            Join
-                          </button>
-                        ) : (
-                          <a class="button" href="/login/">
-                            Sign in to join
-                          </a>
-                        )}
-                      </>
-                    )}
-                    {state.kind === "booked" && (
-                      <span class="badge badge-booked">
-                        <Icon name="lock" size={16} /> {state.mine ? "Your booking" : "Booked"}
-                      </span>
-                    )}
-                    {state.kind === "past" && <span class="muted">Passed</span>}
-                  </li>
-                );
-              })}
-            </ul>
-
             {(() => {
               const state = stateOf(selected, date, hour, now, occ, user?.id);
               return (
@@ -534,20 +504,98 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
                       not turn up, or may use more space than they said.
                     </p>
                     <p class="muted">
-                      Booked by <strong>{state.booker ?? "A student"}</strong>
-                      {state.booker ? "" : " (name hidden by the booker)"}.
+                      Booked by <strong>{state.mine ? "you" : (state.booker ?? "A student")}</strong>
+                      {state.booker || state.mine ? "" : " (name hidden by the booker)"}
+                      {state.joined ? ". You’ve joined this booking" : ""}.
                     </p>
-                    {state.requests ? (
-                      <button type="button" disabled>
-                        Ask the booker
-                      </button>
-                    ) : (
-                      <p class="muted">The booker isn’t accepting requests for this booking.</p>
-                    )}
                   </div>
                 )
               );
             })()}
+
+            <form method="post" action="/api/book/" class="stack">
+              <input type="hidden" name="space" value={selected.id} />
+              <input type="hidden" name="date" value={date} />
+              <input type="hidden" name="next" value={href({ space: selected.id })} />
+              {
+                user && selected.shareable && (
+                  <details class="share-opts">
+                    <summary>Share spare seats when you book (optional)</summary>
+                    <label class="check">
+                      <input type="checkbox" name="shared" value="1" /> Let others join this booking
+                    </label>
+                    <label class="field-inline">
+                      Seats I’ll use
+                      <select name="seats">
+                        {Array.from({ length: selected.capacity - 1 }, (_, i) => i + 1).map((n) => (
+                          <option value={n}>{n}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label class="check">
+                      <input type="checkbox" name="name_public" value="1" /> Show my name (otherwise
+                      others see “A student”)
+                    </label>
+                    <p class="muted">Seats on a shared booking aren’t guaranteed.</p>
+                  </details>
+                )
+              }
+              <ul class="slots">
+                {slotHours.map((h) => {
+                  const state = stateOf(selected, date, h, now, occ, user?.id);
+                  return (
+                    <li aria-current={h === hour ? "true" : undefined}>
+                      <span class="slot-time">{slotLabel(h)}</span>
+                      {state.kind === "free" && (
+                        <>
+                          <span class="badge badge-free">
+                            <Icon name="check" size={16} /> Free
+                          </span>
+                          {user ? (
+                            <button type="submit" name="hour" value={h}>
+                              Book
+                            </button>
+                          ) : (
+                            <a class="button" href="/login/">
+                              Sign in to book
+                            </a>
+                          )}
+                        </>
+                      )}
+                      {state.kind === "shared" && (
+                        <>
+                          <span class="badge badge-shared">
+                            <Icon name="users" size={16} /> {state.spare} seat
+                            {state.spare === 1 ? "" : "s"} open
+                          </span>
+                          {!user ? (
+                            <a class="button" href="/login/">
+                              Sign in to join
+                            </a>
+                          ) : state.mine ? (
+                            <span class="muted">Your booking</span>
+                          ) : state.joined ? (
+                            <button type="submit" formaction="/api/leave/" name="booking" value={state.bookingId} class="button-quiet">
+                              Leave
+                            </button>
+                          ) : (
+                            <button type="submit" formaction="/api/join/" name="booking" value={state.bookingId}>
+                              Join
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {state.kind === "booked" && (
+                        <span class="badge badge-booked">
+                          <Icon name="lock" size={16} /> {state.mine ? "Your booking" : "Booked"}
+                        </span>
+                      )}
+                      {state.kind === "past" && <span class="muted">Passed</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </form>
 
             {
               user && usage && (
@@ -578,7 +626,7 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
       set: (k: string, v: string) => { try { sessionStorage.setItem(k, v); } catch { /* ignore */ } },
       del: (k: string) => { try { sessionStorage.removeItem(k); } catch { /* ignore */ } },
     };
-    const pills = [...form.querySelectorAll<HTMLElement>(".pill")];
+    const pills = [...form.querySelectorAll<HTMLElement>(".pill[data-pop]")];
     const details = pills.map((p) => p.querySelector<HTMLDetailsElement>("details")!);
     const sheet = matchMedia("(max-width: 47.99rem)");
 
@@ -602,7 +650,7 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
     });
     const closeAll = () => details.forEach((d) => (d.open = false));
     document.addEventListener("click", (e) => {
-      if (!(e.target as Element).closest(".pill")) closeAll();
+      if (!(e.target as Element).closest(".pill[data-pop]")) closeAll();
     });
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
@@ -677,13 +725,48 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
   // Live slot updates: when anyone books or cancels, reload to show it, unless
   // a filter popover is open (a reload would close it under the person's finger).
   // The stream says only that a slot changed, never who booked it.
+  //
+  // A browser allows only 6 connections per site over HTTP/1.1 (the dev server,
+  // and any plain-http setup), and each open stream holds one. Left open in
+  // background tabs they would block every new page, so the stream is closed
+  // whenever the tab is hidden or being left, and reopened when it is shown.
   if ("EventSource" in window) {
+    let source: EventSource | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    new EventSource("/api/events").addEventListener("slot", () => {
+    let hiddenAt = 0;
+    const reload = () => {
+      if (!document.querySelector("#filters details[open]")) location.reload();
+    };
+    const open = () => {
+      if (source) return;
+      source = new EventSource("/api/events");
+      source.addEventListener("slot", () => {
+        clearTimeout(timer);
+        timer = setTimeout(reload, 800);
+      });
+    };
+    const close = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (!document.querySelector("#filters details[open]")) location.reload();
-      }, 800);
+      source?.close();
+      source = null;
+    };
+    if (document.visibilityState === "visible") open();
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        close();
+      } else {
+        // Changes made while hidden weren't streamed: refresh if it was hidden a while.
+        if (hiddenAt && Date.now() - hiddenAt > 5000) reload();
+        open();
+      }
+    });
+    addEventListener("pagehide", close);
+    addEventListener("pageshow", (e) => {
+      if (e.persisted) {
+        reload();
+        open();
+      }
     });
   }
 </script>

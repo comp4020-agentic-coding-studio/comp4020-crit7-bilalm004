@@ -5,11 +5,17 @@ A shared study-space finder for the Menzies, Hancock, Chifley and Law libraries
 seats on a shareable booking and others can join. The problem it targets: a room
 booked for four is often used by one, and nobody else can tell or ask.
 
-**Status (work in progress):** Tier 1 is built. You can browse real availability,
-book a one-hour slot and cancel it. Bookings are checked on the server (clashes,
-daily limits, the 14-day window, no past bookings), stored in SQLite and survive
-reloads. Other people's changes appear live over server-sent events. Sharing a
-booking, joining, privacy and the inbox are not built yet, so the inbox is empty.
+**Status (work in progress):** Tiers 1 and 2 are built. You can browse real
+availability, book a one-hour slot and cancel it. Bookings are checked on the
+server (clashes, daily limits, the 14-day window, no past bookings) and stored in
+SQLite. A booker of a space with 2+ seats can offer spare seats, choosing how many
+they use and whether their name is shown (private by default, so others see "A
+student"). Others join directly and can leave; joins never count toward the daily
+limit, can't overlap your own bookings, and can't exceed capacity. "Open seats
+now" lists shared bookings with room across all libraries. Changes appear live
+over server-sent events, which never carry who booked. Shared bookings carry a
+static "seats aren't guaranteed" note. Not built yet: check-in, ask-the-booker
+requests and the inbox (it is empty).
 
 Login is a **fake demo login** (`u1000001`-`u1000005`, password equals the
 username). It is not ANU sign-in.

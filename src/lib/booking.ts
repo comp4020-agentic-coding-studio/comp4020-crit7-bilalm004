@@ -15,7 +15,14 @@ export type BookingError =
   | "too_far_ahead"
   | "clash"
   | "you_overlap"
-  | "daily_limit";
+  | "daily_limit"
+  | "not_shareable"
+  | "bad_seats"
+  | "has_joiners"
+  | "own_booking"
+  | "not_shared"
+  | "full"
+  | "already_joined";
 
 export type Verdict = { ok: true; endUtc: string } | { ok: false; error: BookingError; message: string };
 
@@ -34,8 +41,10 @@ export function validateBooking(
   now: Date,
   /** Existing bookings of the same space. */
   spaceBookings: Slot[],
-  /** Existing bookings of the person asking (any space). */
+  /** Existing bookings of the person asking (any space). These use the daily limit. */
   myBookings: Slot[],
+  /** Slots the person has joined. They count for overlap but never for the limit. */
+  myJoins: Slot[] = [],
 ): Verdict {
   const space = getSpace(req.roomId);
   if (!space) return fail("unknown_space", "That space doesn’t exist.");
@@ -60,7 +69,7 @@ export function validateBooking(
   const iso = { startUtc: start.toISOString(), endUtc: end.toISOString() };
   const slot = { roomId: req.roomId, ...iso };
   if (spaceBookings.some((b) => overlaps(slot, b))) return fail("clash", "Someone has already booked that slot.");
-  if (myBookings.some((b) => overlaps(slot, b)))
+  if ([...myBookings, ...myJoins].some((b) => overlaps(slot, b)))
     return fail("you_overlap", "You already have a booking at that time.");
 
   const pool = poolOf(space.kind);
@@ -75,4 +84,45 @@ export function validateBooking(
     );
 
   return { ok: true, endUtc: iso.endUtc };
+}
+
+export const spareSeats = (capacity: number, seatsUsed: number, joiners: number) =>
+  Math.max(0, capacity - seatsUsed - joiners);
+
+/** Offering seats: only spaces of 2+ seats, and the booker keeps at least one seat and leaves at least one spare. */
+export function validateShare(roomId: string, seatsUsed: number, joiners: number): Verdict | null {
+  const space = getSpace(roomId);
+  if (!space) return fail("unknown_space", "That space doesn’t exist.");
+  if (!space.shareable) return fail("not_shareable", "A single-seat space can’t be shared.");
+  if (!Number.isInteger(seatsUsed) || seatsUsed < 1 || seatsUsed > space.capacity - 1 - joiners)
+    return fail(
+      "bad_seats",
+      joiners > 0
+        ? `Others have joined, so you can use at most ${space.capacity - 1 - joiners} seats.`
+        : `Choose between 1 and ${space.capacity - 1} seats for yourself.`,
+    );
+  return null;
+}
+
+export type JoinTarget = Slot & { userId: string; shared: boolean; seatsUsed: number; joiners: string[] };
+
+export function validateJoin(
+  target: JoinTarget,
+  userId: string,
+  now: Date,
+  myBookings: Slot[],
+  myJoins: Slot[],
+): Verdict {
+  const space = getSpace(target.roomId);
+  if (!space) return fail("unknown_space", "That space doesn’t exist.");
+  if (target.userId === userId) return fail("own_booking", "That’s your own booking.");
+  if (!target.shared || !space.shareable) return fail("not_shared", "That booking isn’t open to others.");
+  if (target.joiners.includes(userId)) return fail("already_joined", "You’ve already joined that booking.");
+  const thisHour = Math.floor(now.getTime() / HOUR_MS) * HOUR_MS;
+  if (new Date(target.startUtc).getTime() < thisHour) return fail("past", "That time has already passed.");
+  if (spareSeats(space.capacity, target.seatsUsed, target.joiners.length) < 1)
+    return fail("full", "No seats are left on that booking.");
+  if ([...myBookings, ...myJoins].some((b) => overlaps(target, b)))
+    return fail("you_overlap", "You already have a booking or a join at that time.");
+  return { ok: true, endUtc: target.endUtc };
 }

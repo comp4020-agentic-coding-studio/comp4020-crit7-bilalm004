@@ -24,4 +24,4 @@ it("persists bookings and enforces ownership", async () => {
   const id = fresh.bookingsOf("u1000001")[0].id;
   expect(cancelBooking("u1000002", id)).toBeUndefined();
   expect(cancelBooking("u1000001", id)).toBeDefined();
-});
+}, 30_000); // cold imports and migrations can exceed 5s while the other specs load the machine

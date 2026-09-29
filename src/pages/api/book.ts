@@ -10,11 +10,16 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const user = getUser(cookies);
   if (!user) return redirect(`/login/?next=${encodeURIComponent(next)}`, 303);
 
+  // Sharing is opt-in and private by default: the name is shown only if ticked.
+  const share = form.get("shared")
+    ? { seatsUsed: Number(form.get("seats")), namePublic: form.get("name_public") === "1" }
+    : undefined;
   const result = createBooking(
     user.id,
     String(form.get("space") ?? ""),
     String(form.get("date") ?? ""),
     Number(form.get("hour")),
+    share,
   );
   const sep = next.includes("?") ? "&" : "?";
   if (!result.ok) return redirect(`${next}${sep}error=${encodeURIComponent(result.message)}`, 303);
