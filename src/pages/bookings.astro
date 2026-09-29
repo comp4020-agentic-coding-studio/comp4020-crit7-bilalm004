@@ -1,9 +1,9 @@
 ---
 import Icon from "../components/Icon.astro";
 import Base from "../layouts/Base.astro";
-import { spareSeats } from "../lib/booking";
+import { spareSeats, validateCheckIn } from "../lib/booking";
 import { usageToday } from "../lib/availability";
-import { bookingsOf, checkedInJoins, joinedBy, joinersOf } from "../lib/db";
+import { bookingsOf, checkedInJoins, joinedBy, joinersOf, myPendingRequests } from "../lib/db";
 import { KIND_LABEL, getSpace, libraryName } from "../lib/rooms";
 import { POOLS, type PoolId } from "../lib/rules";
 import { canberraNow, dateLabel, slotLabel } from "../lib/time";
@@ -17,6 +17,7 @@ const usage = usageToday(rows, now);
 const pools = Object.keys(POOLS) as PoolId[];
 const joiners = joinersOf(rows.map((b) => b.id));
 const arrived = joinersOf(rows.map((b) => b.id), true);
+const asked = user ? myPendingRequests(user.id) : [];
 const myCheckIns = user ? checkedInJoins(user.id) : new Set<number>();
 const when = (iso: string) => {
   const at = canberraNow(new Date(iso));
@@ -157,6 +158,23 @@ const q = Astro.url.searchParams;
             </ul>
           </section>
 
+          {asked.length > 0 && (
+            <section aria-labelledby="asked-heading">
+              <h2 id="asked-heading">Waiting for an answer</h2>
+              <ul class="messages">
+                {asked.map((b) => (
+                  <li class="card">
+                    <p class="message-title">
+                      <strong>{getSpace(b.roomId)?.name}</strong>
+                      <span class="badge badge-shared"><Icon name="users" size={16} /> Requested</span>
+                    </p>
+                    <p class="muted">{when(b.startUtc)} · the booker will accept or decline</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           <section aria-labelledby="joined-heading">
             <h2 id="joined-heading">Joined</h2>
             {joinedList.length === 0 && <p class="muted">You haven’t joined anyone’s booking.</p>}
@@ -180,6 +198,8 @@ const q = Astro.url.searchParams;
                   <div class="row">
                     {myCheckIns.has(b.id) ? (
                       <span class="badge badge-free"><Icon name="check" size={16} /> Checked in</span>
+                    ) : !validateCheckIn(b, true, false, new Date()).ok ? (
+                      <span class="muted">Check-in opens 15 minutes before the hour.</span>
                     ) : (
                       <form method="post" action="/api/checkin/">
                         <input type="hidden" name="booking" value={b.id} />

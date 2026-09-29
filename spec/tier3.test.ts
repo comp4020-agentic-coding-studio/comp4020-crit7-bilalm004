@@ -98,7 +98,7 @@ async function book(user: string, room: string, date: string, hour: number, extr
   expect(where(r)).toContain("booked=1");
   const html = await page("/bookings/", user);
   const id = /name="booking" value="(\d+)"/.exec(
-    cardWith(html, nameOfRoom(room), dateLabel(date), `${String(hour).padStart(2, "0")}:00`) ?? "",
+    cardWith(html, nameOfRoom(room), dateLabel(date), `${String(hour).padStart(2, "0")}:00–`) ?? "",
   )?.[1];
   expect(id, "booking id on /bookings/").toBeTruthy();
   return id!;
@@ -111,6 +111,11 @@ async function requestId(booker: string, requesterName: string, room: string, da
   )?.[1];
   expect(id, "request id in the booker's inbox").toBeTruthy();
   return id!;
+}
+
+/** Joined = the My bookings card offers "Leave" (a pending request card doesn't). */
+async function hasJoined(user: string, room: string, date: string) {
+  return !!cardWith(await page("/bookings/", user), nameOfRoom(room), dateLabel(date), 'action="/api/leave/"');
 }
 
 const base = canberraNow().date;
@@ -130,7 +135,7 @@ describe("ask the booker over HTTP", () => {
     expect(other).not.toContain("asks for a seat</strong>");
     expect(other).not.toContain(`name="request"`);
     // Not a joiner yet.
-    expect(await page("/bookings/", "u1000002")).not.toContain(dateLabel(date));
+    expect(await hasJoined("u1000002", room, date)).toBe(false);
 
     const rid = await requestId(BOOKER.id, "Priya Shah", room, date);
     const done = await post("/api/decide/", BOOKER.id, { request: rid, decision: "accept", next: "/inbox/" });
@@ -139,7 +144,7 @@ describe("ask the booker over HTTP", () => {
     const joined = await page("/bookings/", "u1000002");
     expect(joined).toContain(nameOfRoom(room));
     expect(joined).toContain(dateLabel(date));
-    expect(joined).toContain("Check in"); // the Joined card offers check-in
+    expect(joined).toContain("Check-in opens"); // a future join: no button until the window opens
     expect(await page("/inbox/", "u1000002")).toContain("was accepted");
     // The request is no longer pending for the booker.
     expect(await page("/inbox/", BOOKER.id)).not.toContain(`name="request" value="${rid}"`);
@@ -155,10 +160,10 @@ describe("ask the booker over HTTP", () => {
       "decided=1",
     );
     expect(await page("/inbox/", "u1000003")).toContain("was declined");
-    expect(await page("/bookings/", "u1000003")).not.toContain(dateLabel(date));
+    expect(await hasJoined("u1000003", room, date)).toBe(false);
     // Already answered: deciding again changes nothing and is refused.
     expect(where(await post("/api/decide/", BOOKER.id, { request: rid, decision: "accept", next: "/inbox/" }))).toContain("error=");
-    expect(await page("/bookings/", "u1000003")).not.toContain(dateLabel(date));
+    expect(await hasJoined("u1000003", room, date)).toBe(false);
   });
 
   it("refuses a decision from anyone but the booker, and changes nothing", async () => {
@@ -172,7 +177,7 @@ describe("ask the booker over HTTP", () => {
       const r = await post("/api/decide/", who, { request: rid, decision: "accept", next: "/inbox/" });
       expect(where(r)).toContain("error=");
     }
-    expect(await page("/bookings/", "u1000002")).not.toContain(dateLabel(date));
+    expect(await hasJoined("u1000002", room, date)).toBe(false);
     expect(await page("/inbox/", BOOKER.id)).toContain(`name="request" value="${rid}"`); // still pending
   });
 
@@ -300,7 +305,7 @@ describe("check-in over HTTP", () => {
     const room = "chifley-study-room-1-03";
     const date = addDays(base, 8);
     const id = /name="booking" value="(\d+)"/.exec(
-      cardWith(await page("/bookings/", "u1000005"), nameOfRoom(room), dateLabel(date), "15:00") ?? "",
+      cardWith(await page("/bookings/", "u1000005"), nameOfRoom(room), dateLabel(date), "15:00–16:00") ?? "",
     )?.[1];
     expect(id, "booking from the unread test").toBeTruthy();
 
@@ -345,5 +350,36 @@ describe("check-in over HTTP", () => {
     // Twice is refused; the booker was told once, by name of the joiner.
     expect(where(await post("/api/checkin/", "u1000002", { booking: id!, next: "/bookings/" }))).toContain("already checked in");
     expect(await page("/inbox/", "u1000005")).toContain("Priya Shah checked in to your booking");
+  });
+});
+
+describe("a booker stops sharing", () => {
+  const room = "chifley-study-room-1-06";
+  const date = addDays(base, 13);
+  const stop = (b: string) =>
+    post("/api/share/", BOOKER.id, { booking: b, seats: "1", next: "/bookings/" }); // no `shared` field: sharing off
+
+  it("is refused once someone has joined, and nothing changes", async () => {
+    const b = await book(BOOKER.id, room, date, 15);
+    expect(where(await post("/api/join/", "u1000002", { booking: b, next: "/" }))).toContain("joined=1");
+    expect(where(await stop(b))).toContain("Others have joined");
+    // Still shared and still joined.
+    expect(await page("/bookings/", "u1000002")).toContain(dateLabel(date));
+    expect(cardWith(await page("/bookings/", BOOKER.id), nameOfRoom(room), dateLabel(date), "15:00–16:00")).toContain("Shared");
+  });
+
+  it("with no joiners turns sharing off and tells pending requesters why", async () => {
+    const b = await book(BOOKER.id, room, date, 16);
+    expect(where(await post("/api/request/", "u1000003", { booking: b, next: "/" }))).toContain("requested=1");
+    // The requester sees it waiting on My bookings.
+    expect(await page("/bookings/", "u1000003")).toContain("Waiting for an answer");
+    expect(where(await stop(b))).toContain("saved=1");
+    expect(cardWith(await page("/bookings/", BOOKER.id), nameOfRoom(room), dateLabel(date), "16:00–17:00")).toContain("Not shared");
+    const inbox = await page("/inbox/", "u1000003");
+    expect(inbox).toContain("stopped sharing that booking");
+    expect(inbox).not.toContain(BOOKER.name);
+    expect(await page("/bookings/", "u1000003")).not.toContain("Waiting for an answer");
+    // No longer joinable.
+    expect(where(await post("/api/join/", "u1000004", { booking: b, next: "/" }))).toContain("error=");
   });
 });

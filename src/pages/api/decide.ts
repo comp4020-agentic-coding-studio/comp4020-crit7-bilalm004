@@ -11,7 +11,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const result = decideRequest(user.id, Number(form.get("request")), form.get("decision") === "accept");
   const sep = next.includes("?") ? "&" : "?";
   return redirect(
-    result.ok ? `${next}${sep}decided=1` : `${next}${sep}error=${encodeURIComponent(result.message)}`,
+    result.ok ? `${next}${sep}decided=1&answer=${form.get("decision") === "accept" ? "accepted" : "declined"}` : `${next}${sep}error=${encodeURIComponent(result.message)}`,
     303,
   );
 };

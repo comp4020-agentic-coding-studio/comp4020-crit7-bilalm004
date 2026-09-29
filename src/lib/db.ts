@@ -258,7 +258,13 @@ export function updateSharing(
         .all();
       for (const r of open) {
         db.update(requests).set({ status: "declined" }).where(eq(requests.id, r.id)).run();
-        notify(r.userId, `Your request for ${slotText(b)} was declined.`, "/inbox/");
+        notify(
+          r.userId,
+          next.shared
+            ? `Your request for ${slotText(b)} was declined: the booker switched requests off.`
+            : `Your request for ${slotText(b)} was declined: the booker stopped sharing that booking.`,
+          "/inbox/",
+        );
       }
     }
     touched = b;
@@ -381,6 +387,19 @@ export function requestsForBooker(userId: string) {
     .orderBy(asc(bookings.startUtc))
     .all()
     .map((r) => ({ id: r.id, requesterName: nameOf(r.requester), booking: r.b }));
+}
+
+/** Upcoming bookings the person has asked for a seat on and not yet had answered. */
+export function myPendingRequests(userId: string, now = new Date()): Booking[] {
+  const from = new Date(Math.floor(now.getTime() / 3_600_000) * 3_600_000).toISOString();
+  return db
+    .select({ b: bookings })
+    .from(requests)
+    .innerJoin(bookings, eq(requests.bookingId, bookings.id))
+    .where(and(eq(requests.userId, userId), eq(requests.status, "pending"), gte(bookings.startUtc, from)))
+    .orderBy(asc(bookings.startUtc))
+    .all()
+    .map((r) => r.b);
 }
 
 /** Booking ids the person has a pending request on, so the panel shows "Requested". */

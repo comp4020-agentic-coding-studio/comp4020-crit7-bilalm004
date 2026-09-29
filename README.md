@@ -17,7 +17,8 @@ bookings with room across all libraries.
 Tier 3: a joiner can **check in**, and the details panel shows "N joined · M
 checked in" live. Instead of joining, someone can **ask the booker**; the booker
 accepts (which joins them) or declines from the **inbox**, and can switch requests
-off per booking (pending ones are declined). The inbox holds in-app notifications
+off per booking (pending ones are declined). My bookings lists requests still waiting for an answer, and the Check in button
+appears only once check-in is open. The inbox holds in-app notifications
 (requests and answers, joins, leaves, check-ins, a joined booking being cancelled)
 with a live unread badge. A requester never learns a private booker's name, and
 messages never carry it. Changes and inbox pings arrive over server-sent events,
@@ -55,9 +56,7 @@ calls: the visual design and the shared-pool assumption for booths.
 
 ## Cut
 
-Cut from Tier 3: showing a person their own pending requests on My bookings (the
-answer arrives as an inbox message instead), and marking single messages read
-(only "mark all as read").
+Cut from Tier 3: marking single messages read (only "mark all as read").
 
 Also cut from the whole app: email and push, real SSO, maps, recurring bookings,
 admin tools, timers and auto-release of unclaimed seats.

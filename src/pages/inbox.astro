@@ -26,7 +26,7 @@ const q = Astro.url.searchParams;
   <main id="main" class="narrow">
     <h1>Inbox</h1>
     {q.get("error") && <p class="error" role="alert"><Icon name="x" size={16} /> {q.get("error")}</p>}
-    {q.has("decided") && <p class="callout-info" role="status"><Icon name="check" size={16} /> Request answered. The person has been told.</p>}
+    {q.has("decided") && <p class="callout-info" role="status"><Icon name="check" size={16} /> {q.get("answer") === "accepted" ? "Request accepted: they’re on your booking." : q.get("answer") === "declined" ? "Request declined." : "Request answered."} They’ve been told.</p>}
     {q.has("read") && <p class="callout-info" role="status"><Icon name="check" size={16} /> Marked all as read.</p>}
     {
       !user ? (
