@@ -133,5 +133,6 @@ jobs:
           fi
       - name: Check internal links on the live site
         # Internal links only; the skip is anchored to this app's own origin
-        # so outbound links can't redden a deploy.
-        run: pnpm dlx linkinator "$APP_URL" --recurse --silent --skip "^(?!$APP_URL)"
+        # so outbound links can't redden a deploy. Query-string URLs are skipped too:
+        # this app keeps its state in them, so --recurse never runs out of pages.
+        run: pnpm dlx linkinator "$APP_URL" --recurse --silent --skip "^(?!$APP_URL)" --skip "\?"

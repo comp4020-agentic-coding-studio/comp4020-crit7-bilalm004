@@ -18,3 +18,4 @@ The backend then went in tier by tier, deploying after each:
 
 Another key part of the process was developing using the new Sonnet 5.5. I noticed, as compared to other crits/projects, I was getting turnback from Claude much faster, and much cheaper, demonstrating how staying up to date with the models can provide real, noticeable, benefit.
 
+The CI step "Check internal links on the live site" timed out for me: the app keeps its filters and selected space in query strings, and `--recurse` treats every distinct query string as a new page, so it never runs out of pages to crawl. Following the course forum answer, I added `--skip "\?"` to the linkinator line in `.github/workflows/checks.yml`. Every path link is still checked. I also cut the Timetable window from 12 to 8 hours, because its axe check took 5.1s on the CI runner against a 5s limit.
