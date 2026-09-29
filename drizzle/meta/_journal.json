@@ -8,6 +8,27 @@
       "when": 1784173013185,
       "tag": "0000_dry_captain_flint",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790696489110,
+      "tag": "0001_watery_shinobi_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790696510942,
+      "tag": "0002_fast_the_initiative",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790696532355,
+      "tag": "0003_seed_rooms",
+      "breakpoints": true
     }
   ]
 }

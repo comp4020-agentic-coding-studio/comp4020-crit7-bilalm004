@@ -1,7 +1,5 @@
 ---
-import Icon from "../components/Icon.astro";
 import Base from "../layouts/Base.astro";
-import { SAMPLE_INBOX } from "../lib/sample";
 import { getUser } from "../lib/users";
 
 const user = getUser(Astro.cookies);
@@ -16,36 +14,10 @@ const user = getUser(Astro.cookies);
           <p class="callout-info" role="status">Sign in to see your messages and join requests.</p>
           <a class="button" href="/login/?next=/inbox/">Sign in</a>
         </div>
-      ) : SAMPLE_INBOX.length === 0 ? (
-        <p class="callout-info" role="status">No messages yet.</p>
       ) : (
-        <>
-          <p class="lede">Requests to join your bookings, and replies to yours.</p>
-          <ul class="messages">
-            {SAMPLE_INBOX.map((m) => (
-              <li class="card message" data-unread={m.unread ? "true" : undefined}>
-                <p class="message-title">
-                  <strong>{m.title}</strong>
-                  {m.unread && <span class="badge badge-shared">New</span>}
-                </p>
-                <p class="muted">{m.body}</p>
-                {m.id === 1 && (
-                  <p class="row">
-                    <button type="button" disabled>
-                      Accept
-                    </button>
-                    <button type="button" class="button-quiet" disabled>
-                      Decline
-                    </button>
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-          <p class="callout-info">
-            <Icon name="info" size={16} /> Prototype: these are sample messages.
-          </p>
-        </>
+        <p class="callout-info" role="status">
+          No messages yet. Requests to join your bookings will appear here once sharing is built.
+        </p>
       )
     }
   </main>

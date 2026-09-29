@@ -1,6 +1,5 @@
 ---
 import Icon from "../components/Icon.astro";
-import { unreadCount } from "../lib/sample";
 import { getUser } from "../lib/users";
 import "../styles.css";
 
@@ -11,7 +10,8 @@ interface Props {
 const { title, current } = Astro.props;
 
 const user = getUser(Astro.cookies);
-const unread = user ? unreadCount() : 0;
+// Notifications arrive with sharing (Tier 3); until then the inbox is empty.
+const unread = 0;
 const initials = user?.name
   .split(" ")
   .map((part) => part[0])
@@ -150,7 +150,7 @@ const tabs = [
       });
     </script>
     <footer class="site-footer">
-      Demo app for COMP4020. Sample data only, and the sign-in is a demo.{" "}
+      Demo app for COMP4020. A prototype: the sign-in is a demo, not ANU sign-in.{" "}
       <a href="/readme/">About</a>
     </footer>
   </body>

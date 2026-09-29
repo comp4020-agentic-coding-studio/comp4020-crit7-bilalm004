@@ -12,7 +12,8 @@ import {
   type Space,
 } from "../lib/rooms";
 import { ADVANCE_DAYS, POOLS, poolOf } from "../lib/rules";
-import { sampleBookings, sampleState, usageToday, type State } from "../lib/sample";
+import { loadOccupancy, stateOf, usageToday, type State } from "../lib/availability";
+import { bookingsOf } from "../lib/db";
 import { bookableDates, canberraNow, dateLabel, hourLabel, slotLabel } from "../lib/time";
 import { getUser } from "../lib/users";
 
@@ -20,6 +21,8 @@ const user = getUser(Astro.cookies);
 const q = Astro.url.searchParams;
 const now = canberraNow();
 const dates = bookableDates(now.date, ADVANCE_DAYS);
+const occ = loadOccupancy(dates[0], dates[dates.length - 1]);
+const notice = { error: q.get("error"), booked: q.has("booked"), cancelled: q.has("cancelled") };
 
 const pick = (value: string | null, allowed: readonly string[], fallback: string) =>
   allowed.includes(value ?? "") ? (value as string) : fallback;
@@ -48,7 +51,7 @@ const results: Result[] = [];
 for (const space of SPACES) {
   if (library !== "all" && space.library !== library) continue;
   if (kind !== "any" && space.kind !== kind) continue;
-  const state = sampleState(space, date, hour, now);
+  const state = stateOf(space, date, hour, now, occ, user?.id);
   if (state.kind === "free" && space.capacity >= people) results.push({ space, state });
   if (state.kind === "shared" && state.spare >= people) results.push({ space, state });
 }
@@ -89,7 +92,7 @@ const strip = Array.from({ length: 24 }, (_, h) => h)
     let free = 0;
     let shared = 0;
     for (const sp of gridSpaces) {
-      const st = sampleState(sp, date, h, now);
+      const st = stateOf(sp, date, h, now, occ, user?.id);
       if (st.kind === "free" && sp.capacity >= people) free++;
       if (st.kind === "shared" && st.spare >= people) shared++;
     }
@@ -121,7 +124,7 @@ const dayParts = (d: string) => {
 };
 const selected = selectedId ? getSpace(selectedId) : undefined;
 const slotHours = Array.from({ length: Math.min(8, 24 - hour) }, (_, i) => hour + i);
-const usage = user ? usageToday(sampleBookings(now), now) : null;
+const usage = user ? usageToday(bookingsOf(user.id), now) : null;
 const timePassed = date === now.date && hour < now.hour;
 const libraryText = library === "all" ? "All libraries" : libraryName(library as never);
 const detailsHref = (spaceId: string, d: string, h: number) =>
@@ -137,6 +140,8 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
       <h1>Find a study space</h1>
       <ViewToggle current={view} listHref={href({ view: "list", space: null })} gridHref={href({ view: "grid", space: null, kind: kind === "any" ? null : kind })} />
     </div>
+    {notice.error && <p class="error" role="alert"><Icon name="x" size={16} /> {notice.error}</p>}
+    {notice.booked && <p class="callout-info" role="status"><Icon name="check" size={16} /> Booked. See it under My bookings.</p>}
 
     <form class="panel filters" id="filters" method="get" action="/" aria-label="Search filters">
       <input type="hidden" name="view" value={view} />
@@ -395,7 +400,7 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
                           <span class="cap">{space.capacity} {space.capacity === 1 ? "seat" : "seats"}</span>
                         </th>
                         {cols.map(({ date: d, hour: h }) => {
-                          const st = sampleState(space, d, h, now);
+                          const st = stateOf(space, d, h, now, occ, user?.id);
                           const label = `${space.name}, ${hourLabel(h)}`;
                           const here = selected?.id === space.id && d === date && h === hour;
                           if (st.kind === "past")
@@ -442,8 +447,7 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
               <span class="badge badge-booked"><Icon name="lock" size={16} /> Booked</span>
             </p>
             <p class="callout-info">
-              <Icon name="info" size={16} /> Prototype: this shows sample data. The number after the icon is
-              how many seats are open on a shared booking.
+              <Icon name="info" size={16} /> The number after the icon is how many seats are open on a shared booking.
             </p>
           </section>
         )
@@ -468,7 +472,7 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
             <p class="muted">{dateLabel(date)}. Each booking is one hour.</p>
             <ul class="slots">
               {slotHours.map((h) => {
-                const state = sampleState(selected, date, h, now);
+                const state = stateOf(selected, date, h, now, occ, user?.id);
                 return (
                   <li aria-current={h === hour ? "true" : undefined}>
                     <span class="slot-time">{slotLabel(h)}</span>
@@ -478,9 +482,13 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
                           <Icon name="check" size={16} /> Free
                         </span>
                         {user ? (
-                          <button type="button" disabled>
-                            Book
-                          </button>
+                          <form method="post" action="/api/book/">
+                            <input type="hidden" name="space" value={selected.id} />
+                            <input type="hidden" name="date" value={date} />
+                            <input type="hidden" name="hour" value={h} />
+                            <input type="hidden" name="next" value={href({ space: selected.id })} />
+                            <button type="submit">Book</button>
+                          </form>
                         ) : (
                           <a class="button" href="/login/">
                             Sign in to book
@@ -507,7 +515,7 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
                     )}
                     {state.kind === "booked" && (
                       <span class="badge badge-booked">
-                        <Icon name="lock" size={16} /> Booked
+                        <Icon name="lock" size={16} /> {state.mine ? "Your booking" : "Booked"}
                       </span>
                     )}
                     {state.kind === "past" && <span class="muted">Passed</span>}
@@ -517,7 +525,7 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
             </ul>
 
             {(() => {
-              const state = sampleState(selected, date, hour, now);
+              const state = stateOf(selected, date, hour, now, occ, user?.id);
               return (
                 state.kind === "shared" && (
                   <div class="stack">
@@ -549,10 +557,6 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
                 </p>
               )
             }
-            <p class="callout-info">
-              <Icon name="info" size={16} /> Prototype: this shows sample data, and booking isn’t
-              connected to the database yet.
-            </p>
           </section>
         ) : (
           view === "list" && (
@@ -666,5 +670,20 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
     };
     range.addEventListener("input", () => (out.textContent = label(Number(range.value))));
     range.addEventListener("change", () => slider.requestSubmit());
+  }
+</script>
+
+<script>
+  // Live slot updates: when anyone books or cancels, reload to show it, unless
+  // a filter popover is open (a reload would close it under the person's finger).
+  // The stream says only that a slot changed, never who booked it.
+  if ("EventSource" in window) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    new EventSource("/api/events").addEventListener("slot", () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!document.querySelector("#filters details[open]")) location.reload();
+      }, 800);
+    });
   }
 </script>

@@ -45,3 +45,18 @@ export function hourLabel(hour: number): string {
 export function slotLabel(hour: number): string {
   return `${hourLabel(hour)}–${hourLabel((hour + 1) % 24)}`;
 }
+
+/** The instant a Canberra wall-clock date and hour starts (handles daylight saving). */
+export function canberraToUtc(date: string, hour: number): Date {
+  const [y, m, d] = date.split("-").map(Number);
+  const wanted = Date.UTC(y, m - 1, d, hour);
+  let t = wanted;
+  for (let i = 0; i < 2; i++) {
+    const c = canberraNow(new Date(t));
+    const [cy, cm, cd] = c.date.split("-").map(Number);
+    t = wanted - (Date.UTC(cy, cm - 1, cd, c.hour) - t);
+  }
+  return new Date(t);
+}
+
+export const HOUR_MS = 3_600_000;

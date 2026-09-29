@@ -3,20 +3,30 @@ import Icon from "../components/Icon.astro";
 import Base from "../layouts/Base.astro";
 import { KIND_LABEL, libraryName } from "../lib/rooms";
 import { POOLS, type PoolId } from "../lib/rules";
-import { sampleBookings, usageToday } from "../lib/sample";
+import { usageToday } from "../lib/availability";
+import { bookingsOf } from "../lib/db";
+import { getSpace } from "../lib/rooms";
 import { canberraNow, dateLabel, slotLabel } from "../lib/time";
 import { getUser } from "../lib/users";
 
 const user = getUser(Astro.cookies);
 const now = canberraNow();
-const bookings = sampleBookings(now);
-const usage = usageToday(bookings, now);
+const rows = user ? bookingsOf(user.id) : [];
+const usage = usageToday(rows, now);
+const bookings = rows.flatMap((b) => {
+  const space = getSpace(b.roomId);
+  const at = canberraNow(new Date(b.startUtc));
+  return space ? [{ id: b.id, space, date: at.date, hour: at.hour }] : [];
+});
+const q = Astro.url.searchParams;
 const pools = Object.keys(POOLS) as PoolId[];
 ---
 
 <Base title="My bookings" current="bookings">
   <main id="main" class="narrow">
     <h1>My bookings</h1>
+    {q.get("error") && <p class="error" role="alert"><Icon name="x" size={16} /> {q.get("error")}</p>}
+    {q.has("cancelled") && <p class="callout-info" role="status"><Icon name="check" size={16} /> Booking cancelled.</p>}
     {
       !user ? (
         <div class="stack">
@@ -49,43 +59,27 @@ const pools = Object.keys(POOLS) as PoolId[];
 
           <section aria-labelledby="upcoming-heading">
             <h2 id="upcoming-heading">Upcoming</h2>
+            {bookings.length === 0 && <p class="muted">No upcoming bookings. Find a space to book one.</p>}
             <ul class="messages">
               {bookings.map((b) => (
                 <li class="card">
                   <p class="message-title">
                     <strong>{b.space.name}</strong>
-                    {b.shared ? (
-                      <span class="badge badge-shared">
-                        <Icon name="users" size={16} /> Shared
-                      </span>
-                    ) : (
-                      <span class="badge badge-booked">
-                        <Icon name="lock" size={16} /> Not shared
-                      </span>
-                    )}
                   </p>
                   <p class="muted">
                     {libraryName(b.space.library)} · {KIND_LABEL[b.space.kind]} · {dateLabel(b.date)},{" "}
                     {slotLabel(b.hour)}
                   </p>
-                  {b.shared && (
-                    <p class="muted">
-                      You’re using {b.seatsUsed} of {b.space.capacity} seats · {b.joiners}{" "}
-                      {b.joiners === 1 ? "person has" : "people have"} joined · your name is{" "}
-                      {b.namePublic ? "public" : "hidden"}
-                    </p>
-                  )}
-                  <p class="row">
-                    <button type="button" class="button-quiet" disabled>
-                      Cancel booking
-                    </button>
-                  </p>
+                  <div class="row">
+                    <form method="post" action="/api/cancel/">
+                      <input type="hidden" name="id" value={b.id} />
+                      <input type="hidden" name="next" value="/bookings/" />
+                      <button type="submit" class="button-quiet">Cancel booking</button>
+                    </form>
+                  </div>
                 </li>
               ))}
             </ul>
-            <p class="callout-info">
-              <Icon name="info" size={16} /> Prototype: these are sample bookings.
-            </p>
           </section>
         </>
       )
