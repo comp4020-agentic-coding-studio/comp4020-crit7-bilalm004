@@ -32,6 +32,11 @@ jumping between views. **Grounded:** the fact sheet and the 14-day / 2-a-day rul
   [`80acc2f`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-bilalm004/commit/80acc2f), server and API [`0622708`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-bilalm004/commit/0622708), UI
   [`4cd282d`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-bilalm004/commit/4cd282d), HTTP tests [`405e41a`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-bilalm004/commit/405e41a).
 
+- Polish after checking what was unverified: [`20eeb5c`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-bilalm004/commit/20eeb5c). I asked what had not been
+  verified, ran it in a browser (check-in state, focus ring, dark mode, decline, leave),
+  and fixed the gaps it showed: a dead check-in button, no view of your own pending
+  requests, vague notices, and no test for stopping sharing.
+
 **Tier 3 prompt:** "so lets do tier 3 - u can use multiple agents where needed to
 help be more efficient", with a hand-over brief listing what was done, what wasn't
 and the gotchas. I split it three ways: I wrote the schema, migration, pure rules,
