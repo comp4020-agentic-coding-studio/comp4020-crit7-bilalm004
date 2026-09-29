@@ -1,20 +1,7 @@
 # Crit 7 reflection
 
-**Breakthrough.** Building the interface on throwaway sample data first, with the
-rules and facts written down beforehand, let me judge the whole flow visually
-before committing to a schema. Merging Search and Timetable into a single page
-with pill filters came from looking at real screenshots at phone and desktop
-size, not from the code. Keeping every limit in one table and every room in a
-fact sheet meant the agent could not quietly invent ANU rules, and I could check
-its work against a source.
+**Breakthrough.**
+By focusing on the UI first, it helped me align myself/the project with the actual goal. While this seems obvious, by getting this down concretely, it allowed me to not develop features that I would later scrap, which would have been more exepnsive. Furthermore, by switching the Sonnet 5.5 early, I noticed, as compared to my other projects, a much faster response by Claude, and at a cheaper rate, making the session feel more efficient.
 
-**Who I want to be.** I want to be a developer who directs and checks rather
-than accepts. The agent was fast at producing screens, but the useful moments
-were mine: noticing the filter panel was too busy, that the toggle jumped between
-views, and that a 65-row grid was unusable. I want to keep that habit of looking
-at the actual result at both viewport sizes, grounding decisions in a source, and
-writing down why, so I can account for each choice later rather than just
-shipping whatever compiled. Tier 3 sharpened that: I fixed the contracts
-(schema, rules, API) myself and let agents build screens and tests against them,
-and the privacy rule ("never leak a private booker") turned into tests that read the
-event stream, not just a promise.
+**Who I want to be.** 
+With how quickly advancements are coming in (e.g. even just using Sonnet 5.5 over Sonnet 5), I am firsthand observing this change. Becoming, what seems to be, even cheaper and faster, the effiicency and ability to develop products is increasing too. I want to be someone with focus on understanding the needs of users and building products to serve the community - focusing on the human element, as the technical capabilities of these tools are increasing.
