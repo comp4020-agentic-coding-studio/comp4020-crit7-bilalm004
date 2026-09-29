@@ -698,6 +698,38 @@ a.card[aria-current="true"]:hover {
   margin: 0;
 }
 
+.slider {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.slider label {
+  font-weight: 600;
+}
+
+.slider input[type="range"] {
+  order: 3;
+  flex: 1 1 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  accent-color: var(--gold);
+}
+
+.slider output {
+  flex: 1;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.grid thead th .day {
+  display: block;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .scroll {
   position: relative;
   overflow-x: auto;
@@ -903,4 +935,8 @@ button.account:hover {
       box-shadow 150ms,
       color 150ms;
   }
+}
+
+.slider [hidden] {
+  display: none;
 }

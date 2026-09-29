@@ -17,25 +17,36 @@ const library = pick(q.get("library"), LIBRARIES.map((l) => l.id), "chifley");
 const kind = pick(q.get("kind"), ["any", ...KINDS], "study_room");
 const date = pick(q.get("date"), dates, now.date);
 
-// A 12-hour window, moved earlier and later with links (no JavaScript).
+// A 12-hour window over one continuous run of hours (today 00:00 to the end of
+// the last bookable day), so Later carries on past midnight into the next day.
+// `start` is hours since today 00:00 (Canberra); links and the slider set it.
 const WINDOW = 12;
-const fromParam = Number.parseInt(q.get("from") ?? "", 10);
-const defaultFrom = date === now.date ? Math.min(now.hour, 24 - WINDOW) : 8;
-const from = Number.isInteger(fromParam)
-  ? Math.max(0, Math.min(fromParam, 24 - WINDOW))
-  : defaultFrom;
-const hours = Array.from({ length: WINDOW }, (_, i) => from + i);
+const STEP = 6;
+const total = dates.length * 24;
+const maxStart = total - WINDOW;
+const startParam = Number.parseInt(q.get("start") ?? "", 10);
+const dateStart = dates.indexOf(date) * 24 + (date === now.date ? now.hour : 8);
+const start = Math.max(0, Math.min(Number.isInteger(startParam) ? startParam : dateStart, maxStart));
+const cols = Array.from({ length: WINDOW }, (_, i) => {
+  const abs = start + i;
+  return { date: dates[Math.floor(abs / 24)], hour: abs % 24 };
+});
+const first = cols[0];
+const last = cols[WINDOW - 1];
+const rangeLabel =
+  first.date === last.date
+    ? dateLabel(first.date)
+    : `${dateLabel(first.date)} – ${dateLabel(last.date)}`;
+const sliderText = `${dateLabel(first.date)}, ${hourLabel(first.hour)}`;
 
 const spaces = SPACES.filter(
   (s) => s.library === library && (kind === "any" || s.kind === kind),
 );
 
-const link = (extra: Record<string, string>) =>
-  `/timetable/?${new URLSearchParams({ library, kind, date, from: String(from), ...extra })}`;
-const details = (spaceId: string, h: number) =>
-  `/?${new URLSearchParams({ library, kind: "any", date, time: hourLabel(h), people: "1", sort: "best", space: spaceId })}`;
-const earlier = Math.max(0, from - 6);
-const later = Math.min(24 - WINDOW, from + 6);
+const link = (s: number) =>
+  `/timetable/?${new URLSearchParams({ library, kind, start: String(s) })}`;
+const details = (spaceId: string, d: string, h: number) =>
+  `/?${new URLSearchParams({ library, kind: "any", date: d, time: hourLabel(h), people: "1", sort: "best", space: spaceId })}`;
 ---
 
 <Base title="Timetable" current="timetable">
@@ -76,7 +87,7 @@ const later = Math.min(24 - WINDOW, from + 6);
         <select name="date">
           {
             dates.map((d, i) => (
-              <option value={d} selected={date === d}>
+              <option value={d} selected={first.date === d}>
                 {dateLabel(d)}
                 {i === 0 ? " (today)" : ""}
               </option>
@@ -88,11 +99,11 @@ const later = Math.min(24 - WINDOW, from + 6);
     </form>
 
     <div class="timetable-head">
-      <h2>{libraryName(library as never)} · {dateLabel(date)}</h2>
+      <h2>{libraryName(library as never)} · {rangeLabel}</h2>
       <p class="row">
         {
-          from > 0 ? (
-            <a class="button button-quiet" href={link({ from: String(earlier) })}>
+          start > 0 ? (
+            <a class="button button-quiet" href={link(Math.max(0, start - STEP))}>
               ← Earlier
             </a>
           ) : (
@@ -102,8 +113,8 @@ const later = Math.min(24 - WINDOW, from + 6);
           )
         }
         {
-          from < 24 - WINDOW ? (
-            <a class="button button-quiet" href={link({ from: String(later) })}>
+          start < maxStart ? (
+            <a class="button button-quiet" href={link(Math.min(maxStart, start + STEP))}>
               Later →
             </a>
           ) : (
@@ -114,6 +125,15 @@ const later = Math.min(24 - WINDOW, from + 6);
         }
       </p>
     </div>
+
+    <form class="slider panel" data-today={`${now.date}T12:00:00Z`} method="get" action="/timetable/" aria-label="Move through time">
+      <input type="hidden" name="library" value={library} />
+      <input type="hidden" name="kind" value={kind} />
+      <label for="start">Jump to</label>
+      <input id="start" name="start" type="range" min="0" max={maxStart} step="1" value={start} />
+      <output for="start" id="start-out">{sliderText}</output>
+      <button type="submit" class="button button-quiet" id="start-go">Go</button>
+    </form>
 
     {
       spaces.length === 0 ? (
@@ -128,8 +148,11 @@ const later = Math.min(24 - WINDOW, from + 6);
                 <th scope="col">
                   <span class="sr-only">Space</span>
                 </th>
-                {hours.map((h) => (
-                  <th scope="col">{hourLabel(h)}</th>
+                {cols.map((c, i) => (
+                  <th scope="col">
+                    {(i === 0 || c.hour === 0) && <span class="day">{dateLabel(c.date)}</span>}
+                    {hourLabel(c.hour)}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -142,8 +165,8 @@ const later = Math.min(24 - WINDOW, from + 6);
                       {space.capacity} {space.capacity === 1 ? "seat" : "seats"}
                     </span>
                   </th>
-                  {hours.map((h) => {
-                    const state = sampleState(space, date, h, now);
+                  {cols.map(({ date: d, hour: h }) => {
+                    const state = sampleState(space, d, h, now);
                     const label = `${space.name}, ${hourLabel(h)}`;
                     if (state.kind === "past")
                       return (
@@ -166,7 +189,7 @@ const later = Math.min(24 - WINDOW, from + 6);
                       return (
                         <td class="cell cell-shared">
                           <a
-                            href={details(space.id, h)}
+                            href={details(space.id, d, h)}
                             aria-label={`${label}, ${state.spare} seats open`}
                           >
                             <Icon name="users" size={16} /> {state.spare}
@@ -175,7 +198,7 @@ const later = Math.min(24 - WINDOW, from + 6);
                       );
                     return (
                       <td class="cell cell-free">
-                        <a href={details(space.id, h)} aria-label={`${label}, free`}>
+                        <a href={details(space.id, d, h)} aria-label={`${label}, free`}>
                           <Icon name="check" size={16} />
                         </a>
                       </td>
@@ -200,3 +223,23 @@ const later = Math.min(24 - WINDOW, from + 6);
     </p>
   </main>
 </Base>
+
+<script>
+  // Enhancement only: without JavaScript the Go button submits the slider.
+  const form = document.querySelector<HTMLFormElement>(".slider");
+  const input = form?.querySelector<HTMLInputElement>("#start");
+  const out = form?.querySelector<HTMLOutputElement>("#start-out");
+  const go = form?.querySelector<HTMLElement>("#start-go");
+  if (form && input && out && go) {
+    go.hidden = true;
+    const today = new Date(form.dataset.today ?? "");
+    const label = (n: number) => {
+      const d = new Date(today);
+      d.setUTCDate(d.getUTCDate() + Math.floor(n / 24));
+      const day = d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+      return `${day}, ${String(n % 24).padStart(2, "0")}:00`;
+    };
+    input.addEventListener("input", () => (out.textContent = label(Number(input.value))));
+    input.addEventListener("change", () => form.requestSubmit());
+  }
+</script>
