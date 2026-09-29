@@ -13,7 +13,7 @@ import {
 } from "../lib/rooms";
 import { ADVANCE_DAYS, POOLS, poolOf } from "../lib/rules";
 import { loadOccupancy, stateOf, usageToday, type State } from "../lib/availability";
-import { bookingsOf } from "../lib/db";
+import { bookingsOf, pendingRequestIds } from "../lib/db";
 import { bookableDates, canberraNow, dateLabel, hourLabel, slotLabel } from "../lib/time";
 import { getUser } from "../lib/users";
 
@@ -22,7 +22,7 @@ const q = Astro.url.searchParams;
 const now = canberraNow();
 const dates = bookableDates(now.date, ADVANCE_DAYS);
 const occ = loadOccupancy(dates[0], dates[dates.length - 1]);
-const notice = { error: q.get("error"), booked: q.has("booked"), joined: q.has("joined"), left: q.has("left"), cancelled: q.has("cancelled") };
+const notice = { requested: q.has("requested"), checkedin: q.has("checkedin"), error: q.get("error"), booked: q.has("booked"), joined: q.has("joined"), left: q.has("left"), cancelled: q.has("cancelled") };
 
 const pick = (value: string | null, allowed: readonly string[], fallback: string) =>
   allowed.includes(value ?? "") ? (value as string) : fallback;
@@ -134,6 +134,7 @@ const dayParts = (d: string) => {
 };
 const selected = selectedId ? getSpace(selectedId) : undefined;
 const slotHours = Array.from({ length: Math.min(8, 24 - hour) }, (_, i) => hour + i);
+const pending = user ? pendingRequestIds(user.id) : new Set<number>();
 const usage = user ? usageToday(bookingsOf(user.id), now) : null;
 const timePassed = date === now.date && hour < now.hour;
 const libraryText = library === "all" ? "All libraries" : libraryName(library as never);
@@ -144,7 +145,7 @@ const whenText = `${date === now.date ? "Today" : `${dayParts(date).weekday} ${d
 const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
 ---
 
-<Base title="Find a study space" current="search">
+<Base title="Find a study space" current="search" live>
   <main id="main">
     <div class="page-head">
       <h1>Find a study space</h1>
@@ -153,6 +154,8 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
     {notice.error && <p class="error" role="alert"><Icon name="x" size={16} /> {notice.error}</p>}
     {notice.booked && <p class="callout-info" role="status"><Icon name="check" size={16} /> Booked. See it under My bookings.</p>}
     {notice.joined && <p class="callout-info" role="status"><Icon name="check" size={16} /> You’ve joined. See it under My bookings.</p>}
+    {notice.requested && <p class="callout-info" role="status"><Icon name="check" size={16} /> Request sent. The booker will decide; you’ll see the answer in your inbox.</p>}
+    {notice.checkedin && <p class="callout-info" role="status"><Icon name="check" size={16} /> Checked in.</p>}
     {notice.left && <p class="callout-info" role="status"><Icon name="check" size={16} /> You’ve left that booking.</p>}
 
     <form class="panel filters" id="filters" method="get" action="/" aria-label="Search filters">
@@ -585,6 +588,36 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
                           )}
                         </>
                       )}
+                      {state.kind === "shared" && (
+                        <div class="slot-extra">
+                          <p class="muted">
+                            <Icon name="users" size={14} /> {state.joinedCount} joined · {state.checkedIn} checked in
+                          </p>
+                          {user && state.joined && (
+                            state.arrived ? (
+                              <span class="badge badge-free"><Icon name="check" size={16} /> Checked in</span>
+                            ) : (
+                              <button type="submit" formaction="/api/checkin/" name="booking" value={state.bookingId} class="button-quiet">
+                                Check in
+                              </button>
+                            )
+                          )}
+                          {user && !state.mine && !state.joined && (
+                            pending.has(state.bookingId) ? (
+                              <span class="badge badge-booked"><Icon name="info" size={16} /> Requested</span>
+                            ) : state.requests ? (
+                              <button type="submit" formaction="/api/request/" name="booking" value={state.bookingId} class="button-quiet">
+                                Ask the booker
+                              </button>
+                            ) : (
+                              <span class="muted"><Icon name="info" size={14} /> The booker isn’t taking requests</span>
+                            )
+                          )}
+                          {user && !state.mine && !state.joined && (
+                            <p class="muted slot-help">Join takes a seat straight away. Ask the booker lets them decide.</p>
+                          )}
+                        </div>
+                      )}
                       {state.kind === "booked" && (
                         <span class="badge badge-booked">
                           <Icon name="lock" size={16} /> {state.mine ? "Your booking" : "Booked"}
@@ -722,51 +755,30 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
 </script>
 
 <script>
-  // Live slot updates: when anyone books or cancels, reload to show it, unless
+  // Live slot updates: Base opens the tab's one stream and re-dispatches each
+  // change as "stream:slot" (never says who booked). Reload to show it, unless
   // a filter popover is open (a reload would close it under the person's finger).
-  // The stream says only that a slot changed, never who booked it.
-  //
-  // A browser allows only 6 connections per site over HTTP/1.1 (the dev server,
-  // and any plain-http setup), and each open stream holds one. Left open in
-  // background tabs they would block every new page, so the stream is closed
-  // whenever the tab is hidden or being left, and reopened when it is shown.
-  if ("EventSource" in window) {
-    let source: EventSource | null = null;
+  {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let hiddenAt = 0;
     const reload = () => {
       if (!document.querySelector("#filters details[open]")) location.reload();
     };
-    const open = () => {
-      if (source) return;
-      source = new EventSource("/api/events");
-      source.addEventListener("slot", () => {
-        clearTimeout(timer);
-        timer = setTimeout(reload, 800);
-      });
-    };
-    const close = () => {
+    document.addEventListener("stream:slot", () => {
       clearTimeout(timer);
-      source?.close();
-      source = null;
-    };
-    if (document.visibilityState === "visible") open();
+      timer = setTimeout(reload, 800);
+    });
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
         hiddenAt = Date.now();
-        close();
-      } else {
+        clearTimeout(timer);
+      } else if (hiddenAt && Date.now() - hiddenAt > 5000) {
         // Changes made while hidden weren't streamed: refresh if it was hidden a while.
-        if (hiddenAt && Date.now() - hiddenAt > 5000) reload();
-        open();
+        reload();
       }
     });
-    addEventListener("pagehide", close);
     addEventListener("pageshow", (e) => {
-      if (e.persisted) {
-        reload();
-        open();
-      }
+      if (e.persisted) reload();
     });
   }
 </script>

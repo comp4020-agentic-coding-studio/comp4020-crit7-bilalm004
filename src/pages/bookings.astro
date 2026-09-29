@@ -3,7 +3,7 @@ import Icon from "../components/Icon.astro";
 import Base from "../layouts/Base.astro";
 import { spareSeats } from "../lib/booking";
 import { usageToday } from "../lib/availability";
-import { bookingsOf, joinedBy, joinersOf } from "../lib/db";
+import { bookingsOf, checkedInJoins, joinedBy, joinersOf } from "../lib/db";
 import { KIND_LABEL, getSpace, libraryName } from "../lib/rooms";
 import { POOLS, type PoolId } from "../lib/rules";
 import { canberraNow, dateLabel, slotLabel } from "../lib/time";
@@ -16,6 +16,8 @@ const joinedRows = user ? joinedBy(user.id) : [];
 const usage = usageToday(rows, now);
 const pools = Object.keys(POOLS) as PoolId[];
 const joiners = joinersOf(rows.map((b) => b.id));
+const arrived = joinersOf(rows.map((b) => b.id), true);
+const myCheckIns = user ? checkedInJoins(user.id) : new Set<number>();
 const when = (iso: string) => {
   const at = canberraNow(new Date(iso));
   return `${dateLabel(at.date)}, ${slotLabel(at.hour)}`;
@@ -23,7 +25,7 @@ const when = (iso: string) => {
 
 const bookings = rows.flatMap((b) => {
   const space = getSpace(b.roomId);
-  return space ? [{ b, space, joined: joiners.get(b.id)?.length ?? 0 }] : [];
+  return space ? [{ b, space, joined: joiners.get(b.id)?.length ?? 0, here: arrived.get(b.id)?.length ?? 0 }] : [];
 });
 const joinedList = joinedRows.flatMap((b) => {
   const space = getSpace(b.roomId);
@@ -40,6 +42,7 @@ const q = Astro.url.searchParams;
     {q.get("error") && <p class="error" role="alert"><Icon name="x" size={16} /> {q.get("error")}</p>}
     {q.has("cancelled") && <p class="callout-info" role="status"><Icon name="check" size={16} /> Booking cancelled.</p>}
     {q.has("saved") && <p class="callout-info" role="status"><Icon name="check" size={16} /> Sharing updated.</p>}
+    {q.has("checkedin") && <p class="callout-info" role="status"><Icon name="check" size={16} /> Checked in.</p>}
     {q.has("left") && <p class="callout-info" role="status"><Icon name="check" size={16} /> You’ve left that booking.</p>}
     {
       !user ? (
@@ -75,7 +78,7 @@ const q = Astro.url.searchParams;
             <h2 id="upcoming-heading">Upcoming</h2>
             {bookings.length === 0 && <p class="muted">No upcoming bookings. Find a space to book one.</p>}
             <ul class="messages">
-              {bookings.map(({ b, space, joined }) => (
+              {bookings.map(({ b, space, joined, here }) => (
                 <li class="card">
                   <p class="message-title">
                     <strong>{space.name}</strong>
@@ -99,6 +102,9 @@ const q = Astro.url.searchParams;
                       {spareSeats(space.capacity, b.seatsUsed, joined)} spare · your name is{" "}
                       {b.namePublic ? "public" : "hidden"}
                     </p>
+                    <p class="occupancy">
+                      <Icon name="users" size={16} /> {joined} joined · {here} checked in
+                    </p>
                   )}
                   {space.shareable ? (
                     <form method="post" action="/api/share/" class="stack">
@@ -121,6 +127,13 @@ const q = Astro.url.searchParams;
                         <label class="check">
                           <input type="checkbox" name="name_public" value="1" checked={b.namePublic} /> Show my
                           name (otherwise others see “A student”)
+                        </label>
+                        <label class="field-inline">
+                          Let people ask me for a seat
+                          <select name="requests">
+                            <option value="on" selected={b.requestsOn}>On</option>
+                            <option value="off" selected={!b.requestsOn}>Off</option>
+                          </select>
                         </label>
                         <p class="callout" role="note">
                           <strong>Seats on a shared booking aren’t guaranteed.</strong> Others are told this
@@ -165,6 +178,15 @@ const q = Astro.url.searchParams;
                     space than they said.
                   </p>
                   <div class="row">
+                    {myCheckIns.has(b.id) ? (
+                      <span class="badge badge-free"><Icon name="check" size={16} /> Checked in</span>
+                    ) : (
+                      <form method="post" action="/api/checkin/">
+                        <input type="hidden" name="booking" value={b.id} />
+                        <input type="hidden" name="next" value="/bookings/" />
+                        <button type="submit">Check in</button>
+                      </form>
+                    )}
                     <form method="post" action="/api/leave/">
                       <input type="hidden" name="booking" value={b.id} />
                       <input type="hidden" name="next" value="/bookings/" />

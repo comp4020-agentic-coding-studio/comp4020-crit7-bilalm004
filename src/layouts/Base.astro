@@ -1,17 +1,19 @@
 ---
 import Icon from "../components/Icon.astro";
+import { unreadCount } from "../lib/db";
 import { getUser } from "../lib/users";
 import "../styles.css";
 
 interface Props {
   title: string;
   current?: "search" | "timetable" | "bookings" | "inbox" | "login" | "about";
+  /** Open the live stream even when signed out (the Find a space page). */
+  live?: boolean;
 }
-const { title, current } = Astro.props;
+const { title, current, live = false } = Astro.props;
 
 const user = getUser(Astro.cookies);
-// Notifications arrive with sharing (Tier 3); until then the inbox is empty.
-const unread = 0;
+const unread = user ? unreadCount(user.id) : 0;
 const initials = user?.name
   .split(" ")
   .map((part) => part[0])
@@ -44,7 +46,7 @@ const tabs = [
       document.documentElement.dataset.js = "";
     </script>
   </head>
-  <body>
+  <body data-stream={user || live ? "" : undefined}>
     <a class="skip" href="#main">Skip to content</a>
     <nav class="topbar" aria-label="site">
       <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Study spaces</a>
@@ -68,6 +70,7 @@ const tabs = [
           user && (
             <a
               class="icon-link"
+              id="inbox-link"
               href="/inbox/"
               aria-label={`Inbox, ${unread} unread`}
               aria-current={current === "inbox" ? "page" : undefined}
@@ -149,6 +152,60 @@ const tabs = [
         } catch {}
         describe();
       });
+    </script>
+    <script>
+      // The one live stream for this tab. Closed whenever the tab is hidden:
+      // HTTP/1.1 allows only 6 connections per site and each stream holds one.
+      if ("EventSource" in window && document.body.hasAttribute("data-stream")) {
+        let source: EventSource | null = null;
+        const link = document.querySelector<HTMLAnchorElement>("#inbox-link");
+        const paint = (n: number) => {
+          if (!link) return;
+          link.setAttribute("aria-label", `Inbox, ${n} unread`);
+          let badge = link.querySelector<HTMLElement>(".count");
+          if (n <= 0) return badge?.remove();
+          if (!badge) {
+            badge = document.createElement("span");
+            badge.className = "count";
+            link.append(badge);
+          }
+          badge.textContent = String(n);
+        };
+        const refresh = async () => {
+          try {
+            const res = await fetch("/api/unread", { headers: { accept: "application/json" } });
+            if (res.ok) paint(Number((await res.json()).count) || 0);
+          } catch {}
+        };
+        const open = () => {
+          if (source) return;
+          source = new EventSource("/api/events");
+          source.addEventListener("inbox", refresh);
+          source.addEventListener("slot", () => document.dispatchEvent(new CustomEvent("stream:slot")));
+        };
+        const close = () => {
+          source?.close();
+          source = null;
+        };
+        let hiddenAt = 0;
+        if (document.visibilityState === "visible") open();
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "hidden") {
+            hiddenAt = Date.now();
+            close();
+          } else {
+            if (link && hiddenAt) refresh();
+            open();
+          }
+        });
+        addEventListener("pagehide", close);
+        addEventListener("pageshow", (e) => {
+          if (e.persisted) {
+            refresh();
+            open();
+          }
+        });
+      }
     </script>
     <footer class="site-footer">
       Demo app for COMP4020. A prototype: the sign-in is a demo, not ANU sign-in.{" "}

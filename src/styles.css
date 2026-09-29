@@ -1512,3 +1512,66 @@ a.strip-cell:hover {
     transition: none;
   }
 }
+
+/* ---- Tier 3: index.astro (occupancy, ask the booker, check in) ---- */
+.slot-extra {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border);
+}
+
+.slot-extra p {
+  margin: 0;
+}
+
+.slot-extra .slot-help {
+  flex-basis: 100%;
+  font-size: 0.875rem;
+}
+
+/* Inbox, requests and check-in (Tier 3) */
+.inbox-head {
+  justify-content: space-between;
+}
+
+.inbox-head h2 {
+  margin: 0;
+}
+
+.message a {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.occupancy {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.25rem 0;
+  font-weight: 600;
+}
+
+@media (max-width: 40rem) {
+  .messages button {
+    min-height: 2.75rem;
+  }
+
+  .inbox-head button {
+    min-height: 2.75rem;
+  }
+}
+
+.share-opts .field-inline {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.share-opts .field-inline select {
+  flex: 0 0 auto;
+  min-width: 5rem;
+}

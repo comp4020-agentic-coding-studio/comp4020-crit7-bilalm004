@@ -1,13 +1,33 @@
 ---
+import Icon from "../components/Icon.astro";
 import Base from "../layouts/Base.astro";
+import { inboxOf, requestsForBooker, unreadCount } from "../lib/db";
+import { KIND_LABEL, getSpace, libraryName } from "../lib/rooms";
+import { canberraNow, dateLabel, hourLabel, slotLabel } from "../lib/time";
 import { getUser } from "../lib/users";
 
 const user = getUser(Astro.cookies);
+const messages = user ? inboxOf(user.id) : [];
+const asks = user ? requestsForBooker(user.id) : [];
+const unread = user ? unreadCount(user.id) : 0;
+const when = (iso: string) => {
+  const at = canberraNow(new Date(iso));
+  return `${dateLabel(at.date)}, ${slotLabel(at.hour)}`;
+};
+// Notification times are stored as UTC "YYYY-MM-DD HH:MM:SS".
+const sent = (s: string) => {
+  const at = canberraNow(new Date(`${s.replace(" ", "T")}Z`));
+  return `Sent ${dateLabel(at.date)}, around ${hourLabel(at.hour)}`;
+};
+const q = Astro.url.searchParams;
 ---
 
 <Base title="Inbox" current="inbox">
   <main id="main" class="narrow">
     <h1>Inbox</h1>
+    {q.get("error") && <p class="error" role="alert"><Icon name="x" size={16} /> {q.get("error")}</p>}
+    {q.has("decided") && <p class="callout-info" role="status"><Icon name="check" size={16} /> Request answered. The person has been told.</p>}
+    {q.has("read") && <p class="callout-info" role="status"><Icon name="check" size={16} /> Marked all as read.</p>}
     {
       !user ? (
         <div class="stack">
@@ -15,9 +35,71 @@ const user = getUser(Astro.cookies);
           <a class="button" href="/login/?next=/inbox/">Sign in</a>
         </div>
       ) : (
-        <p class="callout-info" role="status">
-          No messages yet. Requests to join your bookings will appear here once sharing is built.
-        </p>
+        <>
+          <section aria-labelledby="asks-heading">
+            <h2 id="asks-heading">Requests to join your bookings</h2>
+            {asks.length === 0 && (
+              <p class="muted">No requests waiting. When someone asks for a seat on a shared booking, it shows up here.</p>
+            )}
+            <ul class="messages">
+              {asks.map(({ id, requesterName, booking }) => {
+                const space = getSpace(booking.roomId);
+                return (
+                  <li class="card">
+                    <p class="message-title">
+                      <strong>{requesterName} asks for a seat</strong>
+                      <span class="badge badge-shared"><Icon name="users" size={16} /> Pending</span>
+                    </p>
+                    <p class="muted">
+                      {space
+                        ? `${space.name} · ${libraryName(space.library)} · ${KIND_LABEL[space.kind]} · `
+                        : ""}
+                      {when(booking.startUtc)}
+                    </p>
+                    <div class="row">
+                      {["accept", "decline"].map((decision) => (
+                        <form method="post" action="/api/decide/">
+                          <input type="hidden" name="request" value={id} />
+                          <input type="hidden" name="decision" value={decision} />
+                          <input type="hidden" name="next" value="/inbox/" />
+                          <button type="submit" class={decision === "accept" ? undefined : "button-quiet"}>
+                            {decision === "accept" ? "Accept" : "Decline"}
+                          </button>
+                        </form>
+                      ))}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          <section aria-labelledby="messages-heading">
+            <div class="row inbox-head">
+              <h2 id="messages-heading">Messages</h2>
+              {unread > 0 && (
+                <form method="post" action="/api/read/">
+                  <input type="hidden" name="next" value="/inbox/?read=1" />
+                  <button type="submit" class="button-quiet">Mark all as read ({unread})</button>
+                </form>
+              )}
+            </div>
+            {messages.length === 0 && (
+              <p class="muted">No messages yet. You’ll be told here when someone joins, asks for a seat or leaves.</p>
+            )}
+            <ul class="messages">
+              {messages.map((m) => (
+                <li class="card message" data-unread={m.read ? undefined : ""}>
+                  <p class="message-title">
+                    <a href={m.href}>{m.body}</a>
+                    {!m.read && <span class="badge badge-shared"><Icon name="info" size={16} /> New</span>}
+                  </p>
+                  <p class="muted">{sent(m.createdAt)}</p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
       )
     }
   </main>
