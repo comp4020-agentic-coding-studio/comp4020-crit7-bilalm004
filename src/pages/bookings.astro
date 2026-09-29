@@ -19,9 +19,10 @@ const pools = Object.keys(POOLS) as PoolId[];
     <h1>My bookings</h1>
     {
       !user ? (
-        <p class="callout-info" role="status">
-          <a href="/login/?next=/bookings/">Sign in</a> to see your bookings.
-        </p>
+        <div class="stack">
+          <p class="callout-info" role="status">Sign in to see your bookings.</p>
+          <a class="button" href="/login/?next=/bookings/">Sign in</a>
+        </div>
       ) : (
         <>
           <section aria-labelledby="usage-heading">

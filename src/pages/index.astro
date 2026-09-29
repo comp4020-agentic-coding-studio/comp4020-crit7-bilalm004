@@ -133,7 +133,10 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
 
 <Base title="Find a study space" current="search">
   <main id="main">
-    <h1>Find a study space</h1>
+    <div class="page-head">
+      <h1>Find a study space</h1>
+      <ViewToggle current={view} listHref={href({ view: "list", space: null })} gridHref={href({ view: "grid", space: null, kind: kind === "any" ? null : kind })} />
+    </div>
 
     <form class="panel filters" id="filters" method="get" action="/" aria-label="Search filters">
       <input type="hidden" name="view" value={view} />
@@ -275,7 +278,6 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
           <section aria-labelledby="results-heading">
         <div class="results-head">
           <h2 id="results-heading">{`${results.length} ${results.length === 1 ? "option" : "options"}`}</h2>
-          <ViewToggle current={view} listHref={href({ view: "list", space: null })} gridHref={href({ view: "grid", space: null, kind: kind === "any" ? null : kind })} />
           <label class="sort">
             Sort
             <select name="sort" form="filters">
@@ -339,7 +341,6 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
             <div class="timetable-head">
               <h2 id="results-heading">{libraryName(library as never)} · {rangeLabel}</h2>
               <div class="row">
-                <ViewToggle current={view} listHref={href({ view: "list", space: null })} gridHref={href({ view: "grid", space: null, kind: kind === "any" ? null : kind })} />
                 {from > 0 ? (
                   <a class="button button-quiet" href={href({ from: String(Math.max(0, from - STEP)) })}>← Earlier</a>
                 ) : (
@@ -583,8 +584,6 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
     const sync = () => {
       const open = details.find((d) => d.open);
       document.documentElement.toggleAttribute("data-sheet", !!open);
-      if (open) store.set("openPop", open.parentElement!.dataset.pop!);
-      else store.del("openPop");
     };
     // Only one open at a time; Escape, Done and clicking outside close it.
     details.forEach((d) => {
@@ -608,10 +607,11 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
     });
 
     // Date then time (and people) take a few taps, so those stay open after applying.
+    // The flag is set only when a change is applied, and read once here.
     const keep = store.get("openPop");
+    store.del("openPop");
     const back = pills.find((p) => p.dataset.pop === keep && "keep" in p.dataset);
     if (back) back.querySelector("details")!.open = true;
-    else store.del("openPop");
     void sheet;
 
     const input = form.querySelector<HTMLInputElement>("#people")!;
@@ -625,6 +625,8 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
 
     // Apply on every change, keeping the scroll position across the reload.
     const submit = () => {
+      const open = details.find((d) => d.open);
+      if (open) store.set("openPop", open.parentElement!.dataset.pop!);
       store.set("searchScroll", String(scrollY));
       form.requestSubmit();
     };

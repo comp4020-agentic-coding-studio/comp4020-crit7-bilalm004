@@ -12,9 +12,10 @@ const user = getUser(Astro.cookies);
     <h1>Inbox</h1>
     {
       !user ? (
-        <p class="callout-info" role="status">
-          <a href="/login/?next=/inbox/">Sign in</a> to see your messages and join requests.
-        </p>
+        <div class="stack">
+          <p class="callout-info" role="status">Sign in to see your messages and join requests.</p>
+          <a class="button" href="/login/?next=/inbox/">Sign in</a>
+        </div>
       ) : SAMPLE_INBOX.length === 0 ? (
         <p class="callout-info" role="status">No messages yet.</p>
       ) : (

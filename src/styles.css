@@ -1335,6 +1335,8 @@ a.strip-cell:hover {
 .seg a {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 8rem;
   min-height: var(--tap);
   padding: 0 1rem;
   color: var(--text);
@@ -1379,4 +1381,18 @@ a.strip-cell:hover {
 .strip {
   min-width: 0;
   max-width: 100%;
+}
+
+/* Title row: the List | Timetable switch stays in the same place in both views */
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.page-head h1 {
+  margin: 0;
 }

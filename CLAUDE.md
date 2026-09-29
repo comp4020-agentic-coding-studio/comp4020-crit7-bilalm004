@@ -93,12 +93,12 @@ background), gold tint `#F5EDDE` for callouts, Unigrey `#333333` for text.
 ## UI checks: both viewports, every time
 
 Any change that touches UI is not done until I have looked at it at **both**:
-- **Mobile: 375 × 812**
+- **Mobile: 390 × 844**
 - **Desktop: 1280 × 800**
 
 Load the page in a headless browser (Playwright via `npx`, or the `run` skill),
 screenshot both sizes, and actually view the images. Check:
-- no horizontal scroll at 375px; nothing clipped or overlapping
+- no horizontal scroll at 390px; nothing clipped or overlapping
 - tap targets at least 44px on mobile; slot grid usable by touch and scroll
 - the demo-login note, the "not guaranteed" note and error states are visible
 - keyboard focus is visible; colour contrast is readable (axe in CI skips contrast)
