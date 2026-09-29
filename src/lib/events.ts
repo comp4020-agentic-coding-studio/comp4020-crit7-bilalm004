@@ -10,3 +10,10 @@ bus.setMaxListeners(0);
 /** What the stream carries. It never includes who booked: only that a slot changed. */
 export type SlotEvent = { roomId: string; startUtc: string };
 export const emitSlot = (e: SlotEvent) => bus.emit("slot", e);
+
+/**
+ * "Someone's inbox changed." Deliberately carries no user id: the stream is
+ * public, so a client that gets the ping asks /api/unread (which knows who
+ * they are from their cookie) for its own count.
+ */
+export const emitInbox = () => bus.emit("inbox");

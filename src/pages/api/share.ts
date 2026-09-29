@@ -12,6 +12,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     shared: form.get("shared") === "1",
     seatsUsed: Number(form.get("seats")),
     namePublic: form.get("name_public") === "1",
+    requestsOn: form.get("requests") !== "off",
   });
   const sep = next.includes("?") ? "&" : "?";
   return redirect(

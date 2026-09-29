@@ -8,6 +8,7 @@ import { bus, type SlotEvent } from "../../lib/events";
 // only when the client needs to push over the same connection.
 export const GET: APIRoute = () => {
   let onSlot: (e: SlotEvent) => void;
+  let onInbox: () => void;
   let heartbeat: ReturnType<typeof setInterval>;
 
   const stream = new ReadableStream<string>({
@@ -21,10 +22,14 @@ export const GET: APIRoute = () => {
         controller.enqueue(`event: slot\ndata: ${JSON.stringify(e)}\n\n`);
       };
       bus.on("slot", onSlot);
+      // A bare ping, never a user id: clients ask /api/unread for their own count.
+      onInbox = () => controller.enqueue("event: inbox\ndata: {}\n\n");
+      bus.on("inbox", onInbox);
     },
     cancel() {
       clearInterval(heartbeat);
       bus.off("slot", onSlot);
+      bus.off("inbox", onInbox);
     },
   });
 

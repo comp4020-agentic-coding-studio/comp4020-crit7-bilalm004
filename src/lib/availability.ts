@@ -18,7 +18,13 @@ export type State =
       booker: string | null;
       mine: boolean;
       joined: boolean;
+      /** Whether the booker takes "ask the booker" requests. */
       requests: boolean;
+      /** Occupancy: people who joined, and how many of them have checked in. Counts only, no ids. */
+      joinedCount: number;
+      checkedIn: number;
+      /** The viewer has joined and already marked arrival. */
+      arrived: boolean;
     };
 
 /** Bookings keyed by space and the UTC start of the hour. */
@@ -39,7 +45,7 @@ export function stateOf(
   if (date < now.date || (date === now.date && hour < now.hour)) return { kind: "past" };
   const row = occ.get(`${space.id}|${canberraToUtc(date, hour).toISOString()}`);
   if (!row) return { kind: "free" };
-  const { booking: b, joinerIds } = row;
+  const { booking: b, joinerIds, checkedInIds } = row;
   const mine = b.userId === userId;
   const joined = !!userId && joinerIds.includes(userId);
   const spare = spareSeats(space.capacity, b.seatsUsed, joinerIds.length);
@@ -47,7 +53,12 @@ export function stateOf(
   if (!b.shared || (spare === 0 && !mine && !joined)) return { kind: "booked", mine, bookingId: b.id };
   // Privacy: the name leaves the server only if the booker chose to show it.
   const booker = b.namePublic ? (DEMO_USERS.find((u) => u.id === b.userId)?.name ?? null) : null;
-  return { kind: "shared", bookingId: b.id, spare, booker, mine, joined, requests: false };
+  return { kind: "shared", bookingId: b.id, spare, booker, mine, joined,
+    requests: b.requestsOn,
+    joinedCount: joinerIds.length,
+    checkedIn: checkedInIds.length,
+    arrived: !!userId && checkedInIds.includes(userId),
+  };
 }
 
 export { canberraNow };
