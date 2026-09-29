@@ -1,5 +1,6 @@
 ---
 import Icon from "../components/Icon.astro";
+import ViewToggle from "../components/ViewToggle.astro";
 import Base from "../layouts/Base.astro";
 import {
   KIND_LABEL,
@@ -27,8 +28,12 @@ const int = (value: string | null, min: number, max: number, fallback: number) =
   return Number.isInteger(n) && n >= min && n <= max ? n : fallback;
 };
 
-const library = pick(q.get("library"), ["all", ...LIBRARIES.map((l) => l.id)], "all");
-const kind = pick(q.get("kind"), ["any", ...KINDS], "any");
+const view = pick(q.get("view"), ["list", "grid"], "list") as "list" | "grid";
+// The timetable shows one library at a time, so "all" falls back to Chifley there.
+const libraryChoice = pick(q.get("library"), ["all", ...LIBRARIES.map((l) => l.id)], "all");
+const library = view === "grid" && libraryChoice === "all" ? "chifley" : libraryChoice;
+// A 60-row grid is unwieldy, so the Timetable starts on study rooms unless a type is chosen.
+const kind = pick(q.get("kind"), ["any", ...KINDS], view === "grid" ? "study_room" : "any");
 const date = pick(q.get("date"), dates, now.date);
 const hour = int(q.get("time"), 0, 23, date === now.date ? Math.min(now.hour + 1, 23) : 9);
 const people = int(q.get("people"), 1, 8, 1);
@@ -56,6 +61,41 @@ if (sort === "best") {
 const SHOWN = 40;
 const shown = results.slice(0, SHOWN);
 
+// Timetable window: 12 hours over one continuous run of bookable hours, so
+// Later carries on past midnight. `from` is hours since today 00:00 (Canberra).
+const WINDOW = 12;
+const STEP = 6;
+const maxFrom = dates.length * 24 - WINDOW;
+const from = int(q.get("from"), 0, maxFrom, Math.min(dates.indexOf(date) * 24 + hour, maxFrom));
+const cols = Array.from({ length: WINDOW }, (_, i) => {
+  const abs = from + i;
+  return { date: dates[Math.floor(abs / 24)], hour: abs % 24 };
+});
+const rangeLabel =
+  cols[0].date === cols[WINDOW - 1].date
+    ? dateLabel(cols[0].date)
+    : `${dateLabel(cols[0].date)} – ${dateLabel(cols[WINDOW - 1].date)}`;
+const sliderText = `${dateLabel(cols[0].date)}, ${hourLabel(cols[0].hour)}`;
+
+const gridSpaces = SPACES.filter(
+  (sp) => (library === "all" || sp.library === library) && (kind === "any" || sp.kind === kind),
+);
+
+// The strip: how many spaces fit your filters in each hour of the chosen day.
+// Today starts at the current hour: past hours can't be booked, so they're left out.
+const strip = Array.from({ length: 24 }, (_, h) => h)
+  .filter((h) => date !== now.date || h >= now.hour)
+  .map((h) => {
+    let free = 0;
+    let shared = 0;
+    for (const sp of gridSpaces) {
+      const st = sampleState(sp, date, h, now);
+      if (st.kind === "free" && sp.capacity >= people) free++;
+      if (st.kind === "shared" && st.spare >= people) shared++;
+    }
+    return { h, total: free + shared, shared };
+  });
+
 const href = (extra: Record<string, string | null> = {}) => {
   const p = new URLSearchParams({
     library,
@@ -64,7 +104,9 @@ const href = (extra: Record<string, string | null> = {}) => {
     time: hourLabel(hour),
     people: String(people),
     sort,
+    view,
   });
+  if (view === "grid") p.set("from", String(from));
   for (const [k, v] of Object.entries(extra)) {
     if (v === null) p.delete(k);
     else p.set(k, v);
@@ -82,6 +124,8 @@ const slotHours = Array.from({ length: Math.min(8, 24 - hour) }, (_, i) => hour 
 const usage = user ? usageToday(sampleBookings(now), now) : null;
 const timePassed = date === now.date && hour < now.hour;
 const libraryText = library === "all" ? "All libraries" : libraryName(library as never);
+const detailsHref = (spaceId: string, d: string, h: number) =>
+  href({ space: spaceId, date: d, time: hourLabel(h) });
 const kindText = kind === "any" ? "Any type" : KIND_LABEL[kind as keyof typeof KIND_LABEL];
 const whenText = `${date === now.date ? "Today" : `${dayParts(date).weekday} ${dayParts(date).rest}`}, ${hourLabel(hour)}`;
 const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
@@ -92,6 +136,8 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
     <h1>Find a study space</h1>
 
     <form class="panel filters" id="filters" method="get" action="/" aria-label="Search filters">
+      <input type="hidden" name="view" value={view} />
+      {view === "grid" && <input type="hidden" name="sort" value={sort} />}
       <div class="pills">
         <div class="pill" data-pop="library">
           <details class="pop">
@@ -100,7 +146,7 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
               <legend>Library</legend>
               <div class="chips">
                 {
-                  [{ id: "all", name: "All libraries" }, ...LIBRARIES].map((l) => (
+                  [...(view === "grid" ? [] : [{ id: "all", name: "All libraries" }]), ...LIBRARIES].map((l) => (
                     <label class="chip">
                       <input type="radio" name="library" value={l.id} checked={library === l.id} />
                       <span>{l.name}</span>
@@ -194,10 +240,42 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
       </div>
     </form>
 
-    <div class="search-layout">
-      <section aria-labelledby="results-heading">
+    {
+      view === "list" && (
+        <section class="strip" aria-labelledby="strip-title">
+          <div class="strip-head">
+            <h2 id="strip-title">Spaces free by hour · {date === now.date ? "today" : dateLabel(date)}</h2>
+            <a href={href({ view: "grid", kind: kind === "any" ? null : kind })}>Open timetable →</a>
+          </div>
+          <div class="strip-scroll">
+            <ol class="strip-cells">
+              {strip.map((c) => (
+                <li>
+                  <a
+                    class={`strip-cell${c.shared > 0 ? " has-shared" : ""}${c.total === 0 ? " is-zero" : ""}`}
+                    href={href({ time: hourLabel(c.h), space: null })}
+                    aria-current={c.h === hour ? "true" : undefined}
+                    aria-label={`${hourLabel(c.h)}, ${c.total} available${c.shared > 0 ? `, ${c.shared} with shared seats` : ""}`}
+                  >
+                    <span class="strip-h">{String(c.h).padStart(2, "0")}</span>
+                    <span class="strip-n">{c.total}</span>
+                    {c.shared > 0 ? <Icon name="users" size={12} /> : <span class="strip-gap" />}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+      )
+    }
+
+    <div class={`search-layout${view === "grid" ? " grid-layout" : ""}`}>
+      {
+        view === "list" ? (
+          <section aria-labelledby="results-heading">
         <div class="results-head">
           <h2 id="results-heading">{`${results.length} ${results.length === 1 ? "option" : "options"}`}</h2>
+          <ViewToggle current={view} listHref={href({ view: "list", space: null })} gridHref={href({ view: "grid", space: null, kind: kind === "any" ? null : kind })} />
           <label class="sort">
             Sort
             <select name="sort" form="filters">
@@ -255,7 +333,120 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
             </p>
           )
         }
-      </section>
+          </section>
+        ) : (
+          <section aria-labelledby="results-heading">
+            <div class="timetable-head">
+              <h2 id="results-heading">{libraryName(library as never)} · {rangeLabel}</h2>
+              <div class="row">
+                <ViewToggle current={view} listHref={href({ view: "list", space: null })} gridHref={href({ view: "grid", space: null, kind: kind === "any" ? null : kind })} />
+                {from > 0 ? (
+                  <a class="button button-quiet" href={href({ from: String(Math.max(0, from - STEP)) })}>← Earlier</a>
+                ) : (
+                  <span class="button button-quiet is-off" aria-hidden="true">← Earlier</span>
+                )}
+                {from < maxFrom ? (
+                  <a class="button button-quiet" href={href({ from: String(Math.min(maxFrom, from + STEP)) })}>Later →</a>
+                ) : (
+                  <span class="button button-quiet is-off" aria-hidden="true">Later →</span>
+                )}
+              </div>
+            </div>
+
+            <form class="slider panel" method="get" action="/" aria-label="Move through time" data-today={`${now.date}T12:00:00Z`}>
+              <input type="hidden" name="library" value={library} />
+              <input type="hidden" name="kind" value={kind} />
+              <input type="hidden" name="date" value={date} />
+              <input type="hidden" name="time" value={hourLabel(hour)} />
+              <input type="hidden" name="people" value={people} />
+              <input type="hidden" name="sort" value={sort} />
+              <input type="hidden" name="view" value="grid" />
+              {selectedId && <input type="hidden" name="space" value={selectedId} />}
+              <label for="from">Jump to</label>
+              <input id="from" name="from" type="range" min="0" max={maxFrom} step="1" value={from} />
+              <output for="from" id="from-out">{sliderText}</output>
+              <button type="submit" class="button button-quiet" id="from-go">Go</button>
+            </form>
+
+            {gridSpaces.length === 0 ? (
+              <p class="callout-info" role="status">
+                This library has no spaces of that type. Try another type.
+              </p>
+            ) : (
+              <div class="scroll" role="region" aria-label="Timetable, scrolls sideways" tabindex="0">
+                <table class="grid">
+                  <thead>
+                    <tr>
+                      <th scope="col"><span class="sr-only">Space</span></th>
+                      {cols.map((c, i) => (
+                        <th scope="col">
+                          {(i === 0 || c.hour === 0) && <span class="day">{dateLabel(c.date)}</span>}
+                          {hourLabel(c.hour)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gridSpaces.map((space) => (
+                      <tr>
+                        <th scope="row">
+                          {space.name}
+                          <span class="cap">{space.capacity} {space.capacity === 1 ? "seat" : "seats"}</span>
+                        </th>
+                        {cols.map(({ date: d, hour: h }) => {
+                          const st = sampleState(space, d, h, now);
+                          const label = `${space.name}, ${hourLabel(h)}`;
+                          const here = selected?.id === space.id && d === date && h === hour;
+                          if (st.kind === "past")
+                            return (
+                              <td class="cell cell-past">
+                                <span><span class="sr-only">{label}, passed</span></span>
+                              </td>
+                            );
+                          if (st.kind === "booked")
+                            return (
+                              <td class="cell cell-booked">
+                                <span>
+                                  <Icon name="lock" size={16} />
+                                  <span class="sr-only">{label}, booked</span>
+                                </span>
+                              </td>
+                            );
+                          const fits = (st.kind === "shared" ? st.spare : space.capacity) >= people;
+                          const note = fits ? "" : `, too small for ${people} people`;
+                          return st.kind === "shared" ? (
+                            <td class={`cell cell-shared${fits ? "" : " cell-dim"}`}>
+                              <a href={detailsHref(space.id, d, h)} aria-current={here ? "true" : undefined} aria-label={`${label}, ${st.spare} seats open${note}`}>
+                                <Icon name="users" size={16} /> {st.spare}
+                              </a>
+                            </td>
+                          ) : (
+                            <td class={`cell cell-free${fits ? "" : " cell-dim"}`}>
+                              <a href={detailsHref(space.id, d, h)} aria-current={here ? "true" : undefined} aria-label={`${label}, free${note}`}>
+                                <Icon name="check" size={16} />
+                              </a>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <p class="legend" aria-label="Legend">
+              <span class="badge badge-free"><Icon name="check" size={16} /> Free</span>
+              <span class="badge badge-shared"><Icon name="users" size={16} /> Seats open (number)</span>
+              <span class="badge badge-booked"><Icon name="lock" size={16} /> Booked</span>
+            </p>
+            <p class="callout-info">
+              <Icon name="info" size={16} /> Prototype: this shows sample data. The number after the icon is
+              how many seats are open on a shared booking.
+            </p>
+          </section>
+        )
+      }
 
       {
         selected ? (
@@ -363,7 +554,9 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
             </p>
           </section>
         ) : (
-          <p class="sheet-empty muted">Select an option to see its details and other times.</p>
+          view === "list" && (
+            <p class="sheet-empty muted">Select an option to see its details and other times.</p>
+          )
         )
       }
     </div>
@@ -443,5 +636,33 @@ const peopleText = `${people} ${people === 1 ? "person" : "people"}`;
       store.del("searchScroll");
       scrollTo(0, Number(y));
     }
+  }
+</script>
+
+<script>
+  // Enhancement only: bring the chosen hour into view in the availability strip,
+  // and let the timetable slider apply when released (its Go button is the
+  // no-JavaScript fallback).
+  const strip = document.querySelector<HTMLElement>(".strip-scroll");
+  const now = strip?.querySelector<HTMLElement>("[aria-current=true]");
+  if (strip && now) {
+    strip.scrollLeft = now.offsetLeft - strip.clientWidth / 2 + now.offsetWidth / 2;
+  }
+
+  const slider = document.querySelector<HTMLFormElement>(".slider");
+  const range = slider?.querySelector<HTMLInputElement>("#from");
+  const out = slider?.querySelector<HTMLOutputElement>("#from-out");
+  const go = slider?.querySelector<HTMLElement>("#from-go");
+  if (slider && range && out && go) {
+    go.hidden = true;
+    const today = new Date(slider.dataset.today ?? "");
+    const label = (n: number) => {
+      const d = new Date(today);
+      d.setUTCDate(d.getUTCDate() + Math.floor(n / 24));
+      const day = d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+      return `${day}, ${String(n % 24).padStart(2, "0")}:00`;
+    };
+    range.addEventListener("input", () => (out.textContent = label(Number(range.value))));
+    range.addEventListener("change", () => slider.requestSubmit());
   }
 </script>

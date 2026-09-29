@@ -550,20 +550,6 @@ a.card[aria-current="true"]:hover {
 }
 
 /* Search */
-.timetable-filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
-  gap: 0.75rem;
-  align-items: end;
-  margin-block: 0 1.5rem;
-}
-
-.timetable-filters label {
-  display: grid;
-  gap: 0.25rem;
-  font-size: 0.875rem;
-}
-
 /* One row of pills; each opens a small popover (a bottom sheet on a phone) */
 .filters {
   margin: 0 0 1.5rem;
@@ -1237,4 +1223,160 @@ button.account:hover {
 
 .slider [hidden] {
   display: none;
+}
+
+/* Availability strip: spaces free in each hour of the chosen day */
+.strip {
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.strip-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+}
+
+.strip-head h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.strip-head a {
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.strip-scroll {
+  overflow-x: auto;
+  padding: 0.25rem 0.25rem 0.5rem;
+  margin-inline: -0.25rem;
+}
+
+.strip-cells {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(2.75rem, 4rem);
+  justify-content: start;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.strip-cell {
+  position: relative; /* contains the screen-reader-only text inside past cells */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.05rem;
+  min-height: 3.5rem;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-decoration: none;
+  line-height: 1.2;
+}
+
+a.strip-cell:hover {
+  border-color: var(--text-muted);
+}
+
+.strip-h {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.strip-n {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.strip-gap {
+  height: 12px;
+}
+
+.strip-cell.has-shared {
+  background: var(--gold-tint);
+  border-color: var(--gold);
+}
+
+.strip-cell.is-zero .strip-n {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.strip-cell.is-past {
+  opacity: 0.45;
+}
+
+.strip-cell[aria-current="true"] {
+  box-shadow: inset 0 0 0 2px var(--btn-bg);
+}
+
+/* List / Timetable switch */
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--surface);
+  border: 1px solid var(--cool-300);
+  border-radius: 999px;
+}
+
+.seg a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 1rem;
+  color: var(--text);
+  text-decoration: none;
+  border-radius: 999px;
+}
+
+.seg a[aria-current="true"] {
+  color: var(--btn-text);
+  background: var(--btn-bg);
+  font-weight: 600;
+}
+
+/* Timetable view: the grid takes the width; the details panel sits beside it once one is chosen */
+.grid-layout .sheet-empty {
+  display: none;
+}
+
+@media (min-width: 60rem) {
+  .grid-layout:has(.sheet) {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+  }
+
+  .grid-layout:not(:has(.sheet)) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.cell a[aria-current="true"] {
+  box-shadow: inset 0 0 0 3px var(--btn-bg);
+}
+
+.cell-dim a {
+  opacity: 0.4;
+}
+
+/* Let grid children shrink so a wide table scrolls inside itself, not the page */
+.search-layout > * {
+  min-width: 0;
+}
+
+.strip {
+  min-width: 0;
+  max-width: 100%;
 }

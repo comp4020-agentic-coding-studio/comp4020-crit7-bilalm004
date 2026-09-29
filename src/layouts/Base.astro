@@ -18,8 +18,7 @@ const initials = user?.name
   .join("");
 
 const tabs = [
-  { key: "search", href: "/", label: "Search" },
-  { key: "timetable", href: "/timetable/", label: "Timetable" },
+  { key: "search", href: "/", label: "Find a space" },
   ...(user ? [{ key: "bookings", href: "/bookings/", label: "My bookings" }] : []),
 ] as const;
 ---

@@ -1,0 +1,13 @@
+---
+interface Props {
+  current: "list" | "grid";
+  listHref: string;
+  gridHref: string;
+}
+const { current, listHref, gridHref } = Astro.props;
+---
+
+<div class="seg" role="group" aria-label="View">
+  <a href={listHref} aria-current={current === "list" ? "true" : undefined}>List</a>
+  <a href={gridHref} aria-current={current === "grid" ? "true" : undefined}>Timetable</a>
+</div>

@@ -84,9 +84,11 @@ background), gold tint `#F5EDDE` for callouts, Unigrey `#333333` for text.
   Status is never colour alone: always an icon and a word.
 - Header is black; primary buttons black (white in dark mode), gold on hover.
 - Light and dark both follow the system setting. Respect reduced motion.
-- Layouts: a flight-style **Search** flow (filters, then results, then a details
-  panel) and a **Timetable** grid, switched from the header. Inbox icon (unread
-  badge) and user menu (sign in/out, a `<details>`) sit top right.
+- Layouts: one **Find a space** page. A row of filter pills (library, type, when,
+  people) drives two views switched by a List | Timetable toggle: a flight-style
+  results list (with an hourly availability strip) and the Timetable grid, both
+  opening the same details panel. `/timetable/` redirects to `/?view=grid`.
+  Inbox icon (unread badge) and user menu (sign in/out, a `<details>`) sit top right.
 
 ## UI checks: both viewports, every time
 
