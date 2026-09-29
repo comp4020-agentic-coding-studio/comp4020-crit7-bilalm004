@@ -14,5 +14,7 @@ were mine: noticing the filter panel was too busy, that the toggle jumped betwee
 views, and that a 65-row grid was unusable. I want to keep that habit of looking
 at the actual result at both viewport sizes, grounding decisions in a source, and
 writing down why, so I can account for each choice later rather than just
-shipping whatever compiled. This is a draft written mid-project; I will revise it
-once the booking and sharing flow is done.
+shipping whatever compiled. Tier 3 sharpened that: I fixed the contracts
+(schema, rules, API) myself and let agents build screens and tests against them,
+and the privacy rule ("never leak a private booker") turned into tests that read the
+event stream, not just a promise.

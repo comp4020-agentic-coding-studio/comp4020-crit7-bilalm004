@@ -5,17 +5,24 @@ A shared study-space finder for the Menzies, Hancock, Chifley and Law libraries
 seats on a shareable booking and others can join. The problem it targets: a room
 booked for four is often used by one, and nobody else can tell or ask.
 
-**Status (work in progress):** Tiers 1 and 2 are built. You can browse real
-availability, book a one-hour slot and cancel it. Bookings are checked on the
-server (clashes, daily limits, the 14-day window, no past bookings) and stored in
-SQLite. A booker of a space with 2+ seats can offer spare seats, choosing how many
-they use and whether their name is shown (private by default, so others see "A
-student"). Others join directly and can leave; joins never count toward the daily
-limit, can't overlap your own bookings, and can't exceed capacity. "Open seats
-now" lists shared bookings with room across all libraries. Changes appear live
-over server-sent events, which never carry who booked. Shared bookings carry a
-static "seats aren't guaranteed" note. Not built yet: check-in, ask-the-booker
-requests and the inbox (it is empty).
+**Status:** all three tiers are built. You can browse real availability, book a
+one-hour slot and cancel it. Bookings are checked on the server (clashes, daily
+limits, the 14-day window, no past bookings) and stored in SQLite. A booker of a
+space with 2+ seats can offer spare seats, choosing how many they use and whether
+their name is shown (private by default, so others see "A student"). Others join
+directly and can leave; joins never count toward the daily limit, can't overlap
+your own bookings, and can't exceed capacity. "Open seats now" lists shared
+bookings with room across all libraries.
+
+Tier 3: a joiner can **check in**, and the details panel shows "N joined · M
+checked in" live. Instead of joining, someone can **ask the booker**; the booker
+accepts (which joins them) or declines from the **inbox**, and can switch requests
+off per booking (pending ones are declined). The inbox holds in-app notifications
+(requests and answers, joins, leaves, check-ins, a joined booking being cancelled)
+with a live unread badge. A requester never learns a private booker's name, and
+messages never carry it. Changes and inbox pings arrive over server-sent events,
+which never carry who booked or whose inbox changed: a client asks `/api/unread`
+for its own count. Shared bookings carry a static "seats aren't guaranteed" note.
 
 Login is a **fake demo login** (`u1000001`-`u1000005`, password equals the
 username). It is not ANU sign-in.
@@ -41,8 +48,16 @@ calls: the visual design and the shared-pool assumption for booths.
 - Booths share the room pool of 2 per day (only study rooms and the Deck were
   stated explicitly).
 - The accessibility computer and microfilm scanner follow the general 2-per-day rule.
+- Check-in opens 15 minutes before the hour and closes when it ends
+  (`CHECKIN_EARLY_MINUTES` in `src/lib/rules.ts`); the fact sheet says nothing about it.
+- Only joiners check in (the booker is assumed present), and check-in has no
+  consequence: nothing is released automatically.
 
 ## Cut
 
-Email and push, real SSO, maps, recurring bookings, admin tools, timers and
-auto-release of unclaimed seats.
+Cut from Tier 3: showing a person their own pending requests on My bookings (the
+answer arrives as an inbox message instead), and marking single messages read
+(only "mark all as read").
+
+Also cut from the whole app: email and push, real SSO, maps, recurring bookings,
+admin tools, timers and auto-release of unclaimed seats.
